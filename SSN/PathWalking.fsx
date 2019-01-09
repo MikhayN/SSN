@@ -340,7 +340,7 @@ let data = singletons
 let dataMap = data |> Array.map (fun p -> p.ProteinL.[0],[|p|]) |> Map.ofArray
 let pairArray = pairArrayFn (groupIDFn data)
 let matrixD = data |> distMatrixWeightedOf distanceMatrixWeighted None
-let kMeanScheme = kmeanGroupsKKZ 4 None (dataMap) |> Array.map (Array.map (fun (_,i) -> i) >> Array.concat)
+let kMeanScheme = kmeanGroupsKKZ 6 None (dataMap) |> Array.map (Array.map (fun (_,i) -> i) >> Array.concat)
 
 let pq_origin =
     let n = pairArray.Length
@@ -397,12 +397,35 @@ let superFunction nDirections nSteps fStep fComp pq =
 
     let nCalc = [1 .. nSteps] |> List.sumBy (fun i -> (float nDirections)**(float i)) |> int
     printfn "number of checked states: %i" nCalc
+
     r |> Seq.fold (fun bestState currentState -> 
         if (fComp (fst currentState)) > (fComp (fst bestState)) then currentState else bestState ) (Seq.head r)
 
 
 superFunction 3 3 fStep fComp pq_origin |> fst |> (fun x -> x, fComp x)
 
+/// loop for path walking with nDirections iterations and nSteps in depth, applying f on each step
+let superFunctionTest nDirections nSteps fStep fComp (pq :  MinIndexPriorityQueue<float>) =
 
+    let rec loop d statepq =
+        seq [for a in [1 .. nDirections] do
+                let newStatepq = fStep (snd statepq)
+                if d=nSteps then
+                    yield (newStatepq)
+                else
+                    yield (newStatepq)
+                    yield! loop (d+1) newStatepq
+            ]
+    
+    let r = loop 1 ([||],pq)
 
+    let nCalc = [1 .. nSteps] |> List.sumBy (fun i -> (float nDirections)**(float i)) |> int
+    printfn "number of checked states: %i" nCalc
+    
+    r 
+    |> Seq.map (fun (currentState, pq_c) -> 
+        (fComp (currentState)), currentState |> Array.map groupIDFn , pq_c.Length)
+    |> Seq.toArray
+
+superFunctionTest 3 3 fStep fComp pq_origin
     
