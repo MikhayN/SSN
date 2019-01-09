@@ -357,10 +357,11 @@ let pq_origin =
 matrixD |> Array2D.array2D_to_seq |> Seq.min
 
 pq_origin.Top()
+pq_origin.TopIndex()
 
 pairArray.Length
 
-pq_origin.Pop()
+pq_origin.Remove 0
 pq_origin.Length
 [1 .. pq_origin.Length] |> List.map (fun i -> pq_origin.HeapItem i)
 
@@ -370,6 +371,7 @@ let matrixA =
     |> Array.iteri (fun id (i,j) -> 
         let cluster = kMeanScheme |> Array.find (fun x -> x |> Array.contains (data.[i]))
         if (cluster |> Array.contains (data.[j])) then   
+            printfn "remove id=%i pair %i %i" id i j
             pq_origin.Remove id
             m.[i].[j] <- 1
             m.[j].[i] <- 1

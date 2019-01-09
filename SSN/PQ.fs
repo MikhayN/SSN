@@ -103,22 +103,29 @@ type MaxIndexPriorityQueue<'T when 'T : comparison>(n:int) =
         if ((heapInverse.[index]) > m_count) then 
             failwith "IndexedPriorityQueue.Remove: The element was already removed"
         else
-            // swap front to back for removal
-            swapInplace heapInverse.[index] (m_count)
-            m_count <- m_count - 1
-            // re-sort heap
-            sortHeapDownward heapInverse.[index]
+            if heapInverse.[index]=m_count then
+                m_count <- m_count - 1
+            else
+                let heapIndex = heapInverse.[index]
+                // swap front to back for removal
+                swapInplace heapInverse.[index] (m_count)
+                m_count <- m_count - 1
+                // re-sort heap
+                sortHeapDownward heapIndex
 
     /// Removes the element with given index from the queue 
     member this.TryRemove index =
         //if (m_count > 0) then failwith "IndexedPriorityQueue.Pop: Queue is empty"
         if ((heapInverse.[index]) <= m_count) then 
-            
-            // swap front to back for removal
-            swapInplace heapInverse.[index] (m_count)
-            m_count <- m_count - 1
-            // re-sort heap
-            sortHeapDownward heapInverse.[index]
+            if heapInverse.[index]=m_count then
+                m_count <- m_count - 1
+            else
+                let heapIndex = heapInverse.[index]
+                // swap front to back for removal
+                swapInplace heapInverse.[index] (m_count)
+                m_count <- m_count - 1
+                // re-sort heap
+                sortHeapDownward heapIndex
     
     /// Put indexOut element outside of the heap and move indexIn element inside the heap
     member this.Swap indexOut indexIn =
@@ -285,14 +292,17 @@ type MaxIndexPriorityQueue<'T when 'T : comparison>(n:int) =
         temp.SetData objects heap heapInverse m_count
         temp
 
+
+
 /// Create binary tree with MAX on top
 type MinIndexPriorityQueue<'T when 'T : comparison>(n:int) = 
 
     let objects : 'T []      = Array.zeroCreate n //ResizeArray<'T>(n)
-    let heap    : int []     = Array.zeroCreate (n+1) //ResizeArray<int>(n)
-    let heapInverse : int [] = Array.zeroCreate n//ResizeArray<int>(n)
+    let heap    : int []     = Array.zeroCreate (n+1) // (heap.[1] is the peak and has an index of the minimal value as a value)
+    let heapInverse : int [] = Array.zeroCreate n//ResizeArray<int>(n) heapInverse.[index] gives a position of the object.[index] in the heap
     let mutable m_count      = 0
 
+    /// swap elements in heap with heapIndeces i and j
     let swapInplace i j =
         // swap elements in heap
         let tmp = heap.[i]
@@ -324,7 +334,7 @@ type MinIndexPriorityQueue<'T when 'T : comparison>(n:int) =
 
     let sortHeapUpward heapIndex = // check if the object smaller than its parent, if yes, move it upper
         let rec loop heapIndex =
-            let parentIndex = parent( heapIndex )
+            let parentIndex = parent heapIndex 
             if (heapIndex > 1 && 
                     objects.[heap.[heapIndex]] < objects.[heap.[parentIndex]] ) then // change here 
                 // swap this node with its parent
@@ -341,31 +351,31 @@ type MinIndexPriorityQueue<'T when 'T : comparison>(n:int) =
     member this.Clear() = m_count <- 0
     
     /// Increase the value at the current index
-    member this.IncreaseValueAtIndex index (obj : 'T) =
-        if not (index < objects.Length && index >= 0) then 
-            failwithf "IndexedPriorityQueue.DecreaseIndex: Index %i out of range" index
-        if (obj <= objects.[index]) then // check if new value really bigger
-            failwithf "IndexedPriorityQueue.DecreaseIndex: object '%A' isn't greater than current value '%A'" obj objects.[index]
-        objects.[index] <- obj
-        sortDownward index
+    member this.IncreaseValueAtIndex realIndex (obj : 'T) =
+        if not (realIndex < objects.Length && realIndex >= 0) then 
+            failwithf "IndexedPriorityQueue.DecreaseIndex: Index %i out of range" realIndex
+        if (obj <= objects.[realIndex]) then // check if new value really bigger
+            failwithf "IndexedPriorityQueue.DecreaseIndex: object '%A' isn't greater than current value '%A'" obj objects.[realIndex]
+        objects.[realIndex] <- obj
+        sortDownward realIndex
 
     /// Decrease the value at the current index
-    member this.DecreaseValueAtIndex index (obj:'T) =
-        if not (index < objects.Length && index >= 0) then 
-            failwithf "IndexedPriorityQueue.DecreaseIndex: Index %i out of range" index
-        if (obj >= objects.[index]) then // check if new value really smaller
-            failwithf "IndexedPriorityQueue.DecreaseIndex: object '%A' isn't less than current value '%A'" obj objects.[index]
-        objects.[index] <- obj
-        sortUpward index
+    member this.DecreaseValueAtIndex realIndex (obj:'T) =
+        if not (realIndex < objects.Length && realIndex >= 0) then 
+            failwithf "IndexedPriorityQueue.DecreaseIndex: Index %i out of range" realIndex
+        if (obj >= objects.[realIndex]) then // check if new value really smaller
+            failwithf "IndexedPriorityQueue.DecreaseIndex: object '%A' isn't less than current value '%A'" obj objects.[realIndex]
+        objects.[realIndex] <- obj
+        sortUpward realIndex
 
     /// Updates the value at the given index. Note that this function is not
     /// as efficient as the DecreaseIndex/IncreaseIndex methods, but is
     /// best when the value at the index is not known
-    member this.Set index (obj:'T) =
-        if ( obj >= objects.[index] ) then // change here if change MAX MIN sorting
-            this.IncreaseValueAtIndex index obj 
+    member this.Set realIndex (obj:'T) =
+        if ( obj >= objects.[realIndex] ) then // change here if change MAX MIN sorting
+            this.IncreaseValueAtIndex realIndex obj 
         else 
-            this.DecreaseValueAtIndex index obj
+            this.DecreaseValueAtIndex realIndex obj
 
     /// Removes the top element from the queue 
     member this.Pop () =
@@ -383,40 +393,48 @@ type MinIndexPriorityQueue<'T when 'T : comparison>(n:int) =
             objects.[heap.[m_count+1]]
 
     /// Removes the element with given index from the queue 
-    member this.Remove index =
+    member this.Remove realIndex =
         //if (m_count > 0) then failwith "IndexedPriorityQueue.Pop: Queue is empty"
-        if ((heapInverse.[index]) > m_count) then 
+        if ((heapInverse.[realIndex]) > m_count) then 
             failwith "IndexedPriorityQueue.Remove: The element was already removed"
         else
-            // swap front to back for removal
-            swapInplace heapInverse.[index] (m_count)
-            m_count <- m_count - 1
-            // re-sort heap
-            sortHeapUpward heapInverse.[index]
+            if heapInverse.[realIndex]=(m_count) then
+                m_count <- m_count - 1
+            else
+                let heapIndex = heapInverse.[realIndex]
+                // swap front to back for removal
+                swapInplace heapInverse.[realIndex] (m_count)
+                m_count <- m_count - 1
+                // re-sort heap, move downward, because the element was taken from bottom anyway
+                sortHeapDownward heapIndex
 
     /// Removes the element with given index from the queue 
-    member this.TryRemove index =
+    member this.TryRemove realIndex =
         //if (m_count > 0) then failwith "IndexedPriorityQueue.Pop: Queue is empty"
-        if ((heapInverse.[index]) <= m_count) then 
-            
-            // swap front to back for removal
-            swapInplace heapInverse.[index] (m_count)
-            m_count <- m_count - 1
-            // re-sort heap
-            sortHeapUpward heapInverse.[index]
+        if ((heapInverse.[realIndex]) <= m_count) then 
+
+            if heapInverse.[realIndex]=(m_count) then
+                m_count <- m_count - 1
+            else
+                let heapIndex = heapInverse.[realIndex]
+                // swap front to back for removal
+                swapInplace heapInverse.[realIndex] (m_count)
+                m_count <- m_count - 1
+                // re-sort heap
+                sortHeapDownward heapIndex
     
     /// Put indexOut element outside of the heap and move indexIn element inside the heap
     member this.Swap indexOut indexIn =
-        if ((heapInverse.[indexOut]) <= m_count) then 
+        if ((heapInverse.[indexOut]) > m_count) then 
             failwith "IndexedPriorityQueue.Return: The element was already removed from heap"
-        elif ((heapInverse.[indexIn]) > m_count) then 
+        elif ((heapInverse.[indexIn]) <= m_count) then 
             failwith "IndexedPriorityQueue.Return: The element was already inside heap"  
         else   
             swapInplace (heapInverse.[indexOut]) (heapInverse.[indexIn])
             if ( objects.[indexIn] > objects.[indexOut] ) then // change here if change MAX MIN sorting
-                sortUpward indexOut
+                sortDownward indexIn
             else 
-                sortDownward indexOut
+                sortUpward indexIn
 
     /// Removes the element with given index from the queue 
     member this.TryRemoveGroup (indeces: int []) =
@@ -442,7 +460,7 @@ type MinIndexPriorityQueue<'T when 'T : comparison>(n:int) =
             |> Array.sort
         // re-sort heap
         for id in heapIDs do
-            sortHeapUpward id
+            sortDownward id
 
     member this.ReturnGroup (indeces: int[]) =
         let heapIDs = 
@@ -458,7 +476,7 @@ type MinIndexPriorityQueue<'T when 'T : comparison>(n:int) =
             |> Array.sort
         // re-sort heap
         for id in heapIDs do
-            sortHeapUpward id
+            sortDownward id
 
     member this.TryReturnGroup (indeces: int[]) =
         let heapIDs =
@@ -472,7 +490,7 @@ type MinIndexPriorityQueue<'T when 'T : comparison>(n:int) =
             |> Array.sort
         // re-sort heap
         for id in heapIDs do
-            sortHeapUpward id
+            sortDownward id
 
     /// Removes all elements except those with given index from the queue 
     member this.LeaveGroup (indeces: int []) =
