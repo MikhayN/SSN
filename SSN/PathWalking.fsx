@@ -354,17 +354,6 @@ let pq_origin =
         p.Insert j matrixD.[i,ii]
     p
 
-matrixD |> Array2D.array2D_to_seq |> Seq.min
-
-pq_origin.Top()
-pq_origin.TopIndex()
-
-pairArray.Length
-
-pq_origin.Remove 0
-pq_origin.Length
-[1 .. pq_origin.Length] |> List.map (fun i -> pq_origin.HeapItem i)
-
 let matrixA =
     let m = JaggedArray.zeroCreate data.Length data.Length
     pairArray
@@ -380,13 +369,6 @@ let matrixA =
             m.[j].[i] <- 0
         )
     m
-
-let a = 8
-let b = 9
-
-(matrixA.[a] |> Array.indexed |> Array.filter (fun (i,x) -> x=1) |> Array.map fst), // a in A
-(matrixA.[b] |> Array.indexed |> Array.filter (fun (i,x) -> x=1) |> Array.map fst)) // b in B
-
 
 ///     
 let fStep : (MinIndexPriorityQueue<float> -> ((Item [] []) * MinIndexPriorityQueue<float>)) = mainPipeline data matrixA matrixD pairArray
@@ -417,7 +399,7 @@ let superFunction nDirections nSteps fStep fComp pq =
         if (fComp (fst currentState)) > (fComp (fst bestState)) then currentState else bestState ) (Seq.head r)
 
 
-superFunction 3 3 fStep fComp pq_origin |> fst |> (fun x -> x, fComp x)
+superFunction 5 7 fStep fComp pq_origin |> fst |> (fun x -> x, fComp x)
 
 /// loop for path walking with nDirections iterations and nSteps in depth, applying f on each step
 let superFunctionTest nDirections nSteps fStep fComp (pq :  MinIndexPriorityQueue<float>) =
