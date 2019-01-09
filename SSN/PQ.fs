@@ -392,7 +392,7 @@ type MinIndexPriorityQueue<'T when 'T : comparison>(n:int) =
             swapInplace heapInverse.[index] (m_count)
             m_count <- m_count - 1
             // re-sort heap
-            sortHeapDownward heapInverse.[index]
+            sortHeapUpward heapInverse.[index]
 
     /// Removes the element with given index from the queue 
     member this.TryRemove index =
@@ -403,7 +403,7 @@ type MinIndexPriorityQueue<'T when 'T : comparison>(n:int) =
             swapInplace heapInverse.[index] (m_count)
             m_count <- m_count - 1
             // re-sort heap
-            sortHeapDownward heapInverse.[index]
+            sortHeapUpward heapInverse.[index]
     
     /// Put indexOut element outside of the heap and move indexIn element inside the heap
     member this.Swap indexOut indexIn =

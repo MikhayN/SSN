@@ -297,7 +297,9 @@ let updateMatrices (ab: int*int) (pairArray: (int*int) []) (matrixA: int [] []) 
             if a>i then (i,a) else (a,i)
             |> fun (a,iB) -> pairArray |> Array.findIndex (fun pair -> pair=(a,iB)))
     let pairs_aA = 
-        A |> Array.map (fun i -> 
+        A 
+        |> Array.filter (fun i -> i<>a)
+        |> Array.map (fun i -> 
             if a>i then (i,a) else (a,i)
             |> fun (a,iA) -> pairArray |> Array.findIndex (fun pair -> pair=(a,iA)))
     pq.TryRemoveGroup pairs_aB
@@ -313,8 +315,8 @@ let mainPipeline data (matrixA: int [][]) (matrixD: float [,]) (pairArray: (int*
     pq.Pop() |> ignore          // pq will be used for other directiones in for loop
     let pq_new = pq.DeepCopy()  // pq_new will go for next step deeper in recursive part
 
-    printfn "before update pq: %i" pq.Length
-    printfn "before update pq_new: %i" pq_new.Length 
+    //printfn "before update pq: %i" pq.Length
+    //printfn "before update pq_new: %i" pq_new.Length 
 
     let (a,b) =
         pairArray.[pairID] 
@@ -326,11 +328,13 @@ let mainPipeline data (matrixA: int [][]) (matrixD: float [,]) (pairArray: (int*
             else
                 b,a
             )
+    
+    printfn "item to move: %i to item; %i" a b
 
     updateMatrices (a,b) pairArray matrixA pq_new
 
-    printfn "after update pq: %i" pq.Length
-    printfn "after update pq_new: %i" pq_new.Length 
+    //printfn "after update pq: %i" pq.Length
+    //printfn "after update pq_new: %i" pq_new.Length 
 
     let state = reflectState matrixA data
     (state, pq_new)
@@ -351,10 +355,14 @@ let pq_origin =
     p
 
 matrixD |> Array2D.array2D_to_seq |> Seq.min
+
 pq_origin.Top()
 
 pairArray.Length
+
+pq_origin.Pop()
 pq_origin.Length
+[1 .. pq_origin.Length] |> List.map (fun i -> pq_origin.HeapItem i)
 
 let matrixA =
     let m = JaggedArray.zeroCreate data.Length data.Length
@@ -371,6 +379,11 @@ let matrixA =
         )
     m
 
+let a = 8
+let b = 9
+
+(matrixA.[a] |> Array.indexed |> Array.filter (fun (i,x) -> x=1) |> Array.map fst), // a in A
+(matrixA.[b] |> Array.indexed |> Array.filter (fun (i,x) -> x=1) |> Array.map fst)) // b in B
 
 
 ///     
@@ -409,7 +422,9 @@ let superFunctionTest nDirections nSteps fStep fComp (pq :  MinIndexPriorityQueu
 
     let rec loop d statepq =
         seq [for a in [1 .. nDirections] do
-                let newStatepq = fStep (snd statepq)
+                let newStatepq : (Item [] []) * MinIndexPriorityQueue<float> = fStep (snd statepq)
+                printfn "direction %i at depth %i" a d
+                printfn "%f, %A, %i" (fComp (fst newStatepq)) (newStatepq |> fst |> Array.map groupIDFn)  ((snd newStatepq).Length)
                 if d=nSteps then
                     yield (newStatepq)
                 else
