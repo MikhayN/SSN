@@ -16,6 +16,7 @@ let neighFn i winnerIndex currentIndex = // neighbourhood function
     let sigma = 8.0
     let tau = 100.0
     exp( -( float ((winnerIndex - currentIndex)*(winnerIndex - currentIndex)) )/(sigma*exp( -(float i)/tau )))
+
 // etaZero = 0.5 ; tau = 1000.
 let rate i = // learning rate
     let etaZero = 0.5

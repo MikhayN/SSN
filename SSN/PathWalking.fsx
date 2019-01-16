@@ -38,8 +38,6 @@ open FunctionsExp
 
 type ClusterFn = int -> seq<float> option -> Map<string, Item []> -> Item [] [] []
 
-open BioFSharp.Elements
-
 type WalkingFn = (float -> float -> int -> int -> float) -> float [,] ->  Item [] [] [] -> Map<string, Item []>
 
 type Mode =
@@ -256,7 +254,8 @@ let kmeanGroupsKKZ (k: int) weight (children: Map<string,Types.Item []> ) =
         |> Array.map (fun (_,(bin,_)) -> (bin, children |> Map.find bin))
         )
 
-let singletons = TestData.SynData.data1
+
+/// New functions for PathWalk
 
 let pairArrayFn (singletons: int []) = 
     singletons 
@@ -264,89 +263,119 @@ let pairArrayFn (singletons: int []) =
     |> Array.map (fun (a,b) -> if a>b then (b,a) else (a,b))
     |> Array.distinct
 
-  
-
+/// input: i - index of a foreign element, clusterBinaryVector - binary vector, representing a cluster.
 let dist (i: int) (clusterBinaryVector: int []) (matrixD: float [,]) =
     //in clusterBinaryVector if 1 - elements are in the same cluster, 0 - foreigners)
-    clusterBinaryVector |> Array.averageBy (fun j -> matrixD.[i,j])
+    clusterBinaryVector 
+    |> Array.indexed 
+    |> Array.filter (fun (_, clusterBin) ->  clusterBin=1) 
+    |> Array.averageBy (fun (j, _) -> matrixD.[i,j])
 
-let updateMatrices (ab: int*int) (pairArray: (int*int) []) (matrixA: int [] []) (pq: MinIndexPriorityQueue<float>) =
-    
-    /// update MatrixA, so that a is moved from A cluster to b in B cluster 
-
-    let (a,b) = ab
-        
-    let (A,B) = (
-        (matrixA.[a] |> Array.indexed |> Array.filter (fun (i,x) -> x=1) |> Array.map fst), // a in A
-        (matrixA.[b] |> Array.indexed |> Array.filter (fun (i,x) -> x=1) |> Array.map fst)) // b in B
-    
-    // move 'a' out of 'A', but leave it stay with itself
-    for i in A do   
-        matrixA.[a].[i] <- 0
-        matrixA.[i].[a] <- 0
-    matrixA.[a].[a] <- 1
-    
-    // move a in B
-    for j in B do
-        matrixA.[a].[j] <- 1
-        matrixA.[j].[a] <- 1
-    
-    /// updatePQ
-    let pairs_aB =  
-        B |> Array.map (fun i -> 
-            if a>i then (i,a) else (a,i)
-            |> fun (a,iB) -> pairArray |> Array.findIndex (fun pair -> pair=(a,iB)))
-    let pairs_aA = 
-        A 
-        |> Array.filter (fun i -> i<>a)
-        |> Array.map (fun i -> 
-            if a>i then (i,a) else (a,i)
-            |> fun (a,iA) -> pairArray |> Array.findIndex (fun pair -> pair=(a,iA)))
-    pq.TryRemoveGroup pairs_aB
-    pq.TryReturnGroup pairs_aA
 
 let reflectState (matrixA) (data: Item []) =
     matrixA 
-    |> Array.distinct
-    |> Array.map (fun i -> i |> Array.indexed |> Array.filter (fun (i, x) -> x=1 ) |> Array.map (fun (i,_) -> data.[i]))
-
-let mainPipeline data (matrixA: int [][]) (matrixD: float [,]) (pairArray: (int*int) []) (pq: MinIndexPriorityQueue<float>) =
-    let pairID = pq.TopIndex()
-    pq.Pop() |> ignore          // pq will be used for other directiones in for loop
-    let pq_new = pq.DeepCopy()  // pq_new will go for next step deeper in recursive part
-
-    //printfn "before update pq: %i" pq.Length
-    //printfn "before update pq_new: %i" pq_new.Length 
-
-    let (a,b) =
-        pairArray.[pairID] 
-        |> (fun (a,b) -> 
-            let B = matrixA.[b]
-            let A = matrixA.[a]
-            if (dist a B matrixD) < (dist b A matrixD) then  
-                a,b
-            else
-                b,a
-            )
+    |> List.distinct
+    |> List.map (fun i -> 
+        i 
+        |> List.indexed 
+        |> List.filter (fun (_,x) -> x=1 ) 
+        |> List.map (fun (i,_) -> data.[i])
+        |> List.toArray
+        )
+    |> List.toArray
     
-    printfn "item to move: %i to item; %i" a b
+/// loop for path walking with nDirections iterations and nSteps in depth, applying f on each step
+let superFunctionTest nDirections nSteps data matrixD (pairArray: (int*int) []) fComp matrixA pq_origin =
 
-    updateMatrices (a,b) pairArray matrixA pq_new
+    let rec loop iStep (mA: int list list) (pq: MinIndexPriorityQueue<float>)  =
+        
+        seq [for iDirection in [1 .. nDirections] do
+                
+                printfn "direction %i at depth %i" iDirection iStep
+                printfn "scheme before: %A" (data |> reflectState mA |> Array.map groupIDFn)
 
-    //printfn "after update pq: %i" pq.Length
-    //printfn "after update pq_new: %i" pq_new.Length 
+                let pairID = pq.TopIndex()
+                pq.Pop() |> ignore          // pq will be used for other directiones in for loop
+                let pq_new = pq.DeepCopy()  // pq_new will go for next step deeper in recursive part
 
-    let state = reflectState matrixA data
-    (state, pq_new)
+                let (a,b) = // order represents the moving: a - moved, b - target
+                        pairArray.[pairID] 
+                        |> (fun (a,b) -> 
+                            let B = mA.[b] |> List.toArray
+                            let A = mA.[a] |> List.toArray
+                            if (dist a B matrixD) < (dist b A matrixD) then  
+                                a,b
+                            else
+                                b,a
+                            )
+                printfn "moving: %i -> %i" a b
 
+                let matrixAA = mA |> List.map (List.toArray) |> List.toArray
+
+                let (A,B) = (
+                        (matrixAA.[a] |> Array.indexed |> Array.filter (fun (i,x) -> x=1) |> Array.map fst), // a was in A
+                        (matrixAA.[b] |> Array.indexed |> Array.filter (fun (i,x) -> x=1) |> Array.map fst)) // b was in B
+
+                for i in A do   // move 'a' out of 'A', but leave it stay with itself
+                        matrixAA.[a].[i] <- 0
+                        matrixAA.[i].[a] <- 0
+                matrixAA.[a].[a] <- 1
+
+                for j in B do   // move a in B
+                        matrixAA.[a].[j] <- 1
+                        matrixAA.[j].[a] <- 1
+
+                /// updatePQ
+                let pairs_aB =  
+                    B |> Array.map (fun i -> 
+                        if a>i then (i,a) else (a,i)
+                        |> fun (a,iB) -> pairArray |> Array.findIndex (fun pair -> pair=(a,iB))
+                        )
+                let pairs_aA = 
+                    A 
+                    |> Array.filter (fun i -> i<>a)
+                    |> Array.map (fun i -> 
+                        if a>i then (i,a) else (a,i)
+                        |> fun (a,iA) -> pairArray |> Array.findIndex (fun pair -> pair=(a,iA))
+                        )
+                pq_new.TryRemoveGroup pairs_aB
+                pq_new.TryReturnGroup pairs_aA
+
+                let mA_new = matrixAA |> Array.map (Array.toList) |> Array.toList
+                                
+                let newState = reflectState mA_new data
+                let gain = fComp (newState)
+                let configuration = (newState) |> Array.map groupIDFn
+                let stats = (gain, configuration, iDirection, iStep)
+                
+                printfn "%f, %A" gain configuration 
+
+                if iStep=nSteps then
+                    yield (stats)
+                else
+                    yield (stats)
+                    yield! loop (iStep+1) mA_new pq_new
+
+        ]
+    
+    let r = loop 1 matrixA pq_origin
+        
+    r |> Seq.toList
+
+/// Test Path Walk
+
+let singletons = TestData.SynData.data1
 
 let data = singletons
-let dataMap = data |> Array.map (fun p -> p.ProteinL.[0],[|p|]) |> Map.ofArray
-let pairArray = pairArrayFn (groupIDFn data)
-let matrixD = data |> distMatrixWeightedOf distanceMatrixWeighted None
-let kMeanScheme = kmeanGroupsKKZ 6 None (dataMap) |> Array.map (Array.map (fun (_,i) -> i) >> Array.concat)
+//Plots.drawKinetik data [|0 .. 5|] "" |> Chart.Show
+let kMeanScheme = [| [|data.[0]; data.[2]|] ; [|data.[1]; data.[3]|] ; [|data.[4]|] ; [|data.[5]; data.[7]; data.[8]|] ; [|data.[6]|] ; [|data.[9]|] |]
 
-let pq_origin =
+let matrixD = data |> distMatrixWeightedOf distanceMatrixWeighted None
+let fComp = ClusterCheck.checkSgain (SSN.getStepGainNodeSetnR 10) (matrixD)
+
+let pairArray = pairArrayFn (groupIDFn data)
+
+let pq_o =
     let n = pairArray.Length
     let p = MinIndexPriorityQueue<float>(n) // n-i
     for j=0 to n-1 do 
@@ -361,70 +390,108 @@ let matrixA =
         let cluster = kMeanScheme |> Array.find (fun x -> x |> Array.contains (data.[i]))
         if (cluster |> Array.contains (data.[j])) then   
             printfn "remove id=%i pair %i %i" id i j
-            pq_origin.Remove id
+            pq_o.Remove id
             m.[i].[j] <- 1
             m.[j].[i] <- 1
         else
             m.[i].[j] <- 0
-            m.[j].[i] <- 0
+            m.[j].[i] <- 0 
         )
     m
-
-///     
-let fStep : (MinIndexPriorityQueue<float> -> ((Item [] []) * MinIndexPriorityQueue<float>)) = mainPipeline data matrixA matrixD pairArray
-
-let fComp = ClusterCheck.checkSgain (SSN.getStepGainNodeSetnR 10) (matrixD)
-
-fComp kMeanScheme
-
-/// loop for path walking with nDirections iterations and nSteps in depth, applying f on each step
-let superFunction nDirections nSteps fStep fComp pq =
-
-    let rec loop d statepq =
-        seq [for a in [1 .. nDirections] do
-                let newStatepq = fStep (snd statepq)
-                if d=nSteps then
-                    yield (newStatepq)
-                else
-                    yield (newStatepq)
-                    yield! loop (d+1) newStatepq
-            ]
+    |> Array.map (Array.toList)
+    |> Array.toList
     
-    let r = loop 1 ([||],pq)
+let nDirections = 3
+let nSteps = 5
+let nCalc = [1 .. nSteps] |> List.sumBy (fun i -> (float nDirections)**(float i)) |> int    
+let dataToPlot = (fComp kMeanScheme, kMeanScheme |> Array.map groupIDFn, 0 , 0) :: (superFunctionTest 3 5 data matrixD pairArray fComp matrixA pq_o)
 
-    let nCalc = [1 .. nSteps] |> List.sumBy (fun i -> (float nDirections)**(float i)) |> int
-    printfn "number of checked states: %i" nCalc
+dataToPlot.Length 
+dataToPlot |> List.maxBy (fun (x,_,_,_) -> x)
+dataToPlot |> List.filter (fun (x,_,_,_) -> x>=41.41360694)
 
-    r |> Seq.fold (fun bestState currentState -> 
-        if (fComp (fst currentState)) > (fComp (fst bestState)) then currentState else bestState ) (Seq.head r)
-
-
-superFunction 5 7 fStep fComp pq_origin |> fst |> (fun x -> x, fComp x)
-
-/// loop for path walking with nDirections iterations and nSteps in depth, applying f on each step
-let superFunctionTest nDirections nSteps fStep fComp (pq :  MinIndexPriorityQueue<float>) =
-
-    let rec loop d statepq =
-        seq [for a in [1 .. nDirections] do
-                let newStatepq : (Item [] []) * MinIndexPriorityQueue<float> = fStep (snd statepq)
-                printfn "direction %i at depth %i" a d
-                printfn "%f, %A, %i" (fComp (fst newStatepq)) (newStatepq |> fst |> Array.map groupIDFn)  ((snd newStatepq).Length)
-                if d=nSteps then
-                    yield (newStatepq)
-                else
-                    yield (newStatepq)
-                    yield! loop (d+1) newStatepq
-            ]
+let plotGainWalk (list: ('a * 'b * int * int) list ) =
+    let color = function
+        |1 -> colorBlue
+        |2 -> colorBrightBlue
+        |3 -> colorGreen
+        |4 -> colorOrange
+        |5 -> colorYellow
+        |_ -> colorGray
     
-    let r = loop 1 ([||],pq)
+    let edges = 
+        list 
+        |> List.tail
+        |> List.mapi ( fun i (_,_,_,dCurrent) -> 
+                                let source = 
+                                    i - (list 
+                                    |> List.cutAfterN (i+1)
+                                    |> fst
+                                    |> List.rev
+                                    |> List.findIndex (fun (_,_,_,dBefore) -> dBefore < dCurrent)) 
+                                let target = i+1
+                                
+                                (source,target))
+    let lines = 
+        edges
+        |> List.map (fun (i,j) -> 
+                        let (gain1,_,_,step1) = list.[i]
+                        let (gain2,_,_,step2) = list.[j]
+                        Chart.Line ([(step1,gain1);(step2,gain2)], Color = colorGray)
+                    )
+    let points =
+        list
+        |> List.map (fun (gain,_,direction,step) -> 
+                        Chart.Point ([(step,gain)], Labels = [sprintf "%i" direction] ) |> Chart.withMarkerStyle (Size=10, Color=color direction)
+                        )
 
-    let nCalc = [1 .. nSteps] |> List.sumBy (fun i -> (float nDirections)**(float i)) |> int
-    printfn "number of checked states: %i" nCalc
-    
-    r 
-    |> Seq.map (fun (currentState, pq_c) -> 
-        (fComp (currentState)), currentState |> Array.map groupIDFn , pq_c.Length)
-    |> Seq.toArray
+    [lines; points] |> List.concat |> Chart.Combine |> Chart.Show
 
-superFunctionTest 3 3 fStep fComp pq_origin
+
+plotGainWalk dataToPlot
+
+let walkingFunction (fGain) matrixD (initialConf: Item [] [] []) : Map<string, Item []> =    
     
+    let data = singletons
+    //Plots.drawKinetik data [|0 .. 5|] "" |> Chart.Show
+    let kMeanScheme = [| [|data.[0]; data.[2]|] ; [|data.[1]; data.[3]|] ; [|data.[4]|] ; [|data.[5]; data.[7]; data.[8]|] ; [|data.[6]|] ; [|data.[9]|] |]
+
+    let matrixD = data |> distMatrixWeightedOf distanceMatrixWeighted None
+    let fComp = ClusterCheck.checkSgain (SSN.getStepGainNodeSetnR 10) (matrixD)
+
+    let pairArray = pairArrayFn (groupIDFn data)
+
+    let pq_o =
+        let n = pairArray.Length
+        let p = MinIndexPriorityQueue<float>(n) // n-i
+        for j=0 to n-1 do 
+            let (i,ii) = pairArray.[j]
+            p.Insert j matrixD.[i,ii]
+        p
+
+    let matrixA =
+        let m = JaggedArray.zeroCreate data.Length data.Length
+        pairArray
+        |> Array.iteri (fun id (i,j) -> 
+            let cluster = kMeanScheme |> Array.find (fun x -> x |> Array.contains (data.[i]))
+            if (cluster |> Array.contains (data.[j])) then   
+                printfn "remove id=%i pair %i %i" id i j
+                pq_o.Remove id
+                m.[i].[j] <- 1
+                m.[j].[i] <- 1
+            else
+                m.[i].[j] <- 0
+                m.[j].[i] <- 0 
+            )
+        m
+        |> Array.map (Array.toList)
+        |> Array.toList
+
+    
+    let fComp = ClusterCheck.checkSgain fGain (matrixD)
+
+
+
+
+
+
