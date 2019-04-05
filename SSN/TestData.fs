@@ -442,7 +442,7 @@ module ArabiTranscriptome =
         inherit SchemaReader.Attribute.ConverterAttribute()
         override this.convertToObj = 
             SchemaReader.Converter.Single (fun (strs : string) -> 
-                                                (strs |> String.replace "at" "AT" |> String.replace "g" "G") |> box)
+                                                (strs |> String.replace "at" "AT" |> String.replace "m" "M" |> String.replace "g" "G") |> box)
 
     type MapManRead = {
         [<SchemaReader.Attribute.FieldAttribute("BINCODE")>]    [<BinConverter>]       BinString           : string []
@@ -644,6 +644,65 @@ module ArabiTranscriptome =
     let filteredAra =
         itemsWithMapManIdentified
         |> Array.filter (fun x -> dataSign |> Array.exists (fun signif -> signif.ProteinGroup=x.ProteinL.[0]))
+
+
+module ArabiProteome =
+    
+    let csvPathTA = @"c:\Users\mikha\Work-CSB\Data\Proteome_201902\SFBcore_Heat_Protein.txt" 
+    
+    type NameConverter() = 
+        inherit SchemaReader.Attribute.ConverterAttribute()
+        override this.convertToObj = 
+            SchemaReader.Converter.Single (fun (strs : string) -> 
+                                                (strs |> String.split ';' |> Array.map (fun i -> i |> String.replace "\"" "" |> String.subString 0 9 )) |> box)
+
+    type AProteinItemReadT = {
+        [<SchemaReader.Attribute.FieldAttribute("Timepoint")>]       [<NameConverter>]           ProteinGroup    : string []
+        [<SchemaReader.Attribute.FieldAttribute(
+            [| "A15";"A180";"A2880";"A5760";"DA15";"DA180";"DA2880";"DA5760" |])>]  [<ChlamyProteome.DoubleArrayConverter>] Features    : float [] 
+        }
+
+    let readerTA = new SchemaReader.Csv.CsvReader<AProteinItemReadT>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
+
+    /// Variable, contains all raw data from protein DataBase file in csvPath
+    let dataProteinTA = 
+        readerTA.ReadFile (csvPathTA, General.separatorTab, General.hasHeader) 
+        |> Seq.distinctBy (fun x -> x.ProteinGroup)
+        |> Seq.toArray
+
+    let mapItemsToMapMan id (item: AProteinItemReadT) = 
+        //printfn "name %s" item.ProteinGroup
+        let binMM = 
+                    /// Calling Web.Server SQL DB
+            //(Queries.getOntologyterms MapManOntology item.ProteinGroup).OntologyGroups 
+            //|> (fun list -> 
+            //                if list.IsEmpty then 
+            //                    []
+            //                else 
+            //                    list
+            //                    |> List.head |> fst |> String.split ':' |> Array.item 1 |> String.split '.' |> Array.toList)
+            [|for a in item.ProteinGroup ->
+                try 
+                    (ArabiTranscriptome.dataMM |> Array.find (fun i -> i.ProteinIdentifier=a)).BinString 
+                with _ -> [||]
+            |] |> fun x ->
+                try 
+                    (x |> Array.find (fun i -> i<>[||]) )
+                with _ -> [||]
+        {
+        ID = id;
+        ProteinL = item.ProteinGroup;
+        OriginalBin = binMM;
+        BinL = binMM;
+        dataL = General.zScoreTransform item.Features 
+        } 
+
+    let ItemsWithMapMan = 
+        dataProteinTA |> Array.mapi (fun id x -> mapItemsToMapMan id x)
+    let itemsWithMapManFound = 
+        ItemsWithMapMan |> Array.filter (fun x -> x.OriginalBin<>[||]) |> Array.distinctBy (fun x -> x.ProteinL)
+    let itemsWithMapManIdentified =
+        itemsWithMapManFound |> Array.filter (fun x -> x.OriginalBin.[0]<>"35")
 
 
 //let data : Item [] = 

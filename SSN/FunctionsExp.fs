@@ -986,7 +986,21 @@ module PreClusterFunctions =
             (binName,items))
         |> Map.ofArray
 
+    /////// Kmean for groups with KKZ centroid init ///////////////////////////////////////////////////
 
+    let kmeanGroupsKKZ (k: int) (children: Map<string,Types.Item []> ) =
+
+        let data = children |> Map.toArray |> Array.map (fun (s,ar) -> (s,ar |> Array.map (fun p -> p.dataL) |> MatrixTopLevelOperators.matrix))
+
+        let clusters = ML.Unsupervised.IterativeClustering.compute distMatrix (initCgroupsKKZ) updateCentroid data k
+
+        data
+        |> Array.map (fun list -> (clusters.Classifier list |> fst),list )
+        |> Array.groupBy (fst)
+        |> Array.map (fun (_,list) -> 
+            list 
+            |> Array.map (fun (_,(bin,_)) -> (bin, children |> Map.find bin))
+            )
 
 module KMeanSwapFunctions =
    

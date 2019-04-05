@@ -142,46 +142,31 @@ type MaxIndexPriorityQueue<'T when 'T : comparison>(n:int) =
 
     /// Removes the element with given index from the queue 
     member this.RemoveGroup (indeces: int []) =
-        let heapIDs = 
-            [|for id in indeces ->
-                let c = heapInverse.[id]
+        indeces
+            |> Array.iter (fun id -> 
+                let c = heapInverse.[id]                
                 if (c > m_count) then 
                     failwith "IndexedPriorityQueue.Remove: The element was already removed"
-                else
-                    // swap front to back for removal
-                    swapInplace c (m_count)
-                    m_count <- m_count - 1
-                    c  |] 
-            |> Array.sort
-        // re-sort heap
-        for id in heapIDs do
-            sortHeapUpward id
-
+                elif c=m_count then           // check if the element is the last in the heap
+                    m_count <- m_count - 1  // remove the last element out of the heap
+                else 
+                    swapInplace c (m_count) // swap with the last element from the heap
+                    m_count <- m_count - 1  // remove the now last element out of the heap
+                    // re-sort heap
+                    sortHeapDownward c )
+        
     /// Removes the element with given index from the queue 
     member this.TryRemoveGroup (indeces: int []) =
-        //let heapIDs = 
-        //    [|for id in indeces ->
-        //        let c = heapInverse.[id]
-        //        if (c > m_count) then 
-        //            failwith "IndexedPriorityQueue.Remove: The element was already removed"
-        //        else
-        //            // swap front to back for removal
-        //            swapInplace c (m_count)
-        //            m_count <- m_count - 1
-        //            c  |] 
-        //    |> Array.sort
-        let heapIDs =
             indeces
-            |> Array.map (fun id -> heapInverse.[id])
-            |> Array.filter (fun c -> c <= m_count)
-            |> Array.map (fun c -> 
-                swapInplace c (m_count)
-                m_count <- m_count - 1
-                c)
-            |> Array.sort
-        // re-sort heap
-        for id in heapIDs do
-            sortHeapUpward id
+            |> Array.iter (fun id -> 
+                let c = heapInverse.[id]                
+                if c=m_count then           // check if the element is the last in the heap
+                    m_count <- m_count - 1  // remove the last element out of the heap
+                elif (c<m_count) && (c>0) then
+                    swapInplace c (m_count) // swap with the last element from the heap
+                    m_count <- m_count - 1  // remove the now last element out of the heap
+                    // re-sort heap
+                    sortHeapDownward c )
 
     member this.ReturnGroup (indeces: int[]) =
         let heapIDs = 

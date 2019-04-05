@@ -74,6 +74,12 @@
     <None Include="Centroid initialization.fsx" />
     <None Include="ElbowCriterion.fsx" />
     <None Include="PathWalking.fsx" />
+    <None Include="WalkGGSingletons.fsx" />
+    <None Include="Walk_wo_ForbiddenStates.fsx" />
+    <None Include="Walk_noRepetition.fsx" />
+    <None Include="GroupGainPathWalking.fsx" />
+    <None Include="GroupGainPathWalking_simpleTreeFn.fsx" />
+    <None Include="GroupGainPathWalking_TerminalCondition.fsx" />
     <None Include="App.config" />
     <Content Include="packages.config" />
   </ItemGroup>

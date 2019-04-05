@@ -38,6 +38,40 @@ open FunctionsExp
 open FunctionsExp
 open FSharp.Stats.ML
 
+//open FSharpAux.IO
+//open FSharpAux
+
+//let csvPathTA = @"c:\Users\mikha\Work-CSB\Data\Proteome_201902\SFBcore_Heat_Protein.txt" 
+    
+//type NameConverter() = 
+//    inherit SchemaReader.Attribute.ConverterAttribute()
+//    override this.convertToObj = 
+//        SchemaReader.Converter.Single (fun (strs : string) -> 
+//                                            (strs |> String.split ';' |> Array.map (fun i -> i |> String.replace "\"" "" |> String.subString 0 9 )) |> box)
+
+//type DoubleArrayConverter() = 
+//        inherit SchemaReader.Attribute.ConverterAttribute()
+//        override this.convertToObj = 
+//            SchemaReader.Converter.Collection (fun (strs : seq<string>) -> 
+//                                                    (strs |> Seq.map (fun s -> FSharpAux.String.tryParseFloatDefault nan s) |> Seq.toArray) |> box)
+        
+
+//type AProteinItemReadT = {
+//    [<SchemaReader.Attribute.FieldAttribute("Timepoint")>]       [<NameConverter>]           ProteinGroup    : string []
+//    [<SchemaReader.Attribute.FieldAttribute(
+//        [| "A15";"A180";"A2880";"A5760";"DA15";"DA180";"DA2880";"DA5760" |])>]  [<DoubleArrayConverter>] Features    : float [] 
+//    }
+
+//let readerTA = new SchemaReader.Csv.CsvReader<AProteinItemReadT>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
+
+
+///// Variable, contains all raw data from protein DataBase file in csvPath
+//let dataProteinTA = 
+//    readerTA.ReadFile (csvPathTA, '\t', true) 
+//    |> Seq.distinctBy (fun x -> x.ProteinGroup)
+//    |> Seq.toArray
+
+
 /// comparison of pairwise matrices (each is created as 0 if the pair is in the same leaf, 1 if not). O(n*n)
 let treeComparison (treeA: Node<string,Item>) (treeB: Node<string, Item>) : int =
     let m tree =
