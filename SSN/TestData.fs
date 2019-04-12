@@ -639,7 +639,7 @@ module ArabiTranscriptome =
         |> Seq.distinctBy (fun x -> x.ProteinGroup)
         |> Seq.toArray
 
-    let dataSign = dataSignFn expModeHeat 1. // cange here for experiment type and sign level (standard = 0.05, no filter = 1.)
+    let dataSign = dataSignFn expModeHeat 1. // change here for experiment type and sign level (standard = 0.05, no filter = 1.)
 
     let filteredAra =
         itemsWithMapManIdentified

@@ -96,7 +96,7 @@ let drawKinetikRange time title (data: Item [] [])  =
         let data = protein.dataL
         let points = Array.zip time data
         let name = string protein.ID
-        Chart.Line (points, Name = name, Labels = [label;"";"";"";"";""])
+        Chart.Line (points, Name = name)//, Labels = [label;"";"";"";"";""])
     
     let dataLineAsRange anno (proteins: Item [])  =
         let (mean,min,max) = 
@@ -107,7 +107,7 @@ let drawKinetikRange time title (data: Item [] [])  =
             |> Array.unzip3
 
         let meanTime = Array.zip time mean 
-        let rangePlot = Chart.Range (meanTime, min, max, Labels = [anno;"";"";"";"";""])
+        let rangePlot = Chart.Range (meanTime, min, max)//, Labels = [anno;"";"";"";"";""])
         rangePlot //meanLine
 
     let specialData = 

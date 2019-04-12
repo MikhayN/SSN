@@ -96,8 +96,19 @@ module Tree =
         |> Array.map (fun (bin,xList) -> xList |> Array.map (fun x -> bin,x) )
         |> Array.concat
 
-    /// find nodeMembers with given keyPath 
+    /// find node as a tree with given keyPath 
     let findNode (keyPath: 'a list) tree = 
+        let rec loop (keyPath: 'a list) tree = 
+            match keyPath with
+            | [] -> tree.Member
+            | k::key ->             
+                match Map.tryFind k tree.Children with
+                | Some tree -> loop key tree
+                | None -> [||]
+        loop keyPath.Tail tree
+
+    /// find nodeMembers with given keyPath 
+    let findNodeMembers (keyPath: 'a list) tree = 
         let rec loop (keyPath: 'a list) tree = 
             match keyPath with
             | [] -> tree.Member

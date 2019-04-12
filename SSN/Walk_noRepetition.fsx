@@ -47,12 +47,12 @@ open FunctionsExp
 //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [header])
 
 ///
-let fileLogName = "QDict_ChlaProt_Path1_d3s7"
+//let fileLogName = "QDict_ChlaProt_Path29_d2s5"
 
-let headerLog = "StepN\tDirectionN\tGainBefore\tGainNow" 
-let pathLog = @"c:\Users\mikha\Work-CSB\Projects\SSN\results\walkResults\"
+//let headerLog = "StepN\tDirectionN\tGainBefore\tGainNow" 
+//let pathLog = @"c:\Users\mikha\Work-CSB\Projects\SSN\results\walkResults\"
 
-File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [headerLog])
+//File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [headerLog])
 
 let mutable stepCount = 0
 
@@ -191,11 +191,11 @@ let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,I
         let initStateIDs = reflectStateID matrixA
         let initialState = (gainFnn data singleGG matrixSingles fn initStateIDs, initStateIDs)
 
-        //let fileLogInit = sprintf "0.\t0.\tnan\tnan\t0.\t%f" (fst initialState)
+        //let fileLogInit = sprintf "0\t0\tnan\tnan\t0.\t%f" (fst initialState)
         //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogInit])
 
-        let fileLog = sprintf "0.\t0.\t0.\t%f" (fst initialState)
-        File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [fileLog])
+        //let fileLog = sprintf "0\t0\t0.\t%f" (fst initialState)
+        //File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [fileLog])
 
         let clusterMA = matrixA |> List.distinct
         let pairArray' = Array.allPairs [|0 .. (data.Length-1)|] [|0 .. (clusterMA.Length)|] 
@@ -221,41 +221,55 @@ let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,I
             seq [ while 
                 (pq.Length>0) 
                 && (pq.Top()>0.) 
-                && (countDirections<3) && (iStep<7) do // (pq.Top() > gainCurrent) && (countDirections<3) && (iStep<6)
+                && (countDirections<2) && (iStep<5) do // (pq.Top() > gainCurrent) && (countDirections<3) && (iStep<6)
                 
                     countDirections <- countDirections + 1
                     
                     // order represents the moving: a - moved element, b - target cluster
-                    let (a,b) = pairArray.[pq.TopIndex()]                 
+                                     
 
                     //let fileLogStep = sprintf "%i\t%i\t%i\t%i\t%f\t%f" iStep countDirections a b gainCurrent (pq.Top())
                     //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogStep])
 
-                    let mA_new = snd mG.[a].[b]
+                    let (a,b) = 
+                        while (pq.Length>0) 
+                            && (qDictionary |> Map.containsKey (snd mG.[fst pairArray.[pq.TopIndex()]].[snd pairArray.[pq.TopIndex()]])) do
+                                pq.Pop() |> ignore
 
-                    let fileStep = sprintf "%i\t%i\t%f\t%f" iStep countDirections gainCurrent (pq.Top())
-                    File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [fileStep])
-
-                    pq.Pop() |> ignore // pq will be used for other directiones in while loop
-
-                    // find all values in mG with the same state and exclude possibility to go there again 
-                    // by adding all a's in moved (don't change mG!) and removing duplicate states from pq
-                    let all_a = 
-                        mG 
-                        |> Array.indexed 
-                        |> Array.filter (fun (_, vL) -> (vL |> Array.contains mG.[a].[b]) )
-                        |> Array.map (fun (i,vl) ->
-                                    let jjj = vl |> Array.findIndex (fun v -> v = mG.[a].[b])
-                                    pq.TryRemove ((i*mG.[0].Length)+jjj)
-                                    i )
-
-                    if (qDictionary |> Map.containsKey mA_new) then
+                        if pq.Length=0 then 
+                            (-1,-1)
+                        else
+                            pairArray.[pq.TopIndex()]
                         
-                        //let fileLogState = sprintf "%A was already visited, no step further" (reflectStateID mA_new)
-                        //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogState]) 
-                        
-                        yield! [] // how to get rid of the unnecessary empty lists? 
+                    if (a,b)=(-1,-1) then // if the pq is empty and no new states are found
+                        yield! []
                     else
+
+                        let mA_new = snd mG.[a].[b]
+
+                        //let fileStep = sprintf "%i\t%i\t%f\t%f" iStep countDirections gainCurrent (pq.Top())
+                        //File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [fileStep])
+
+                        pq.Pop() |> ignore // pq will be used for other directiones in while loop
+
+                        // find all values in mG with the same state and exclude possibility to go there again 
+                        // by adding all a's in moved (don't change mG!) and removing duplicate states from pq
+                        let all_a = 
+                            mG 
+                            |> Array.indexed 
+                            |> Array.filter (fun (_, vL) -> (vL |> Array.contains mG.[a].[b]) )
+                            |> Array.map (fun (i,vl) ->
+                                        let jjj = vl |> Array.findIndex (fun v -> v = mG.[a].[b])
+                                        pq.TryRemove ((i*mG.[0].Length)+jjj)
+                                        i )
+
+                    //if (qDictionary |> Map.containsKey mA_new) then
+                        
+                    //    //let fileLogState = sprintf "%A was already visited, no step further" (reflectStateID mA_new)
+                    //    //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogState]) 
+                        
+                    //    yield! [] // how to get rid of the unnecessary empty lists? 
+                    //else
                     
                         //let fileLogState = sprintf "%A" (reflectStateID mA_new)
                         //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogState]) 
@@ -416,9 +430,9 @@ let createTreeWalking gainFn (weight: seq<float> option) (mode: Mode) (rootGroup
                         //let fileLogData = sprintf "for elements:%A" (x |> Map.toArray |> Array.map fst)
                         //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogData])
 
-                        let fileLogData = sprintf "for elements:%A" (x |> Map.toArray |> Array.map fst)
-                        File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [fileLogData])
-                        File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [headerLog])
+                        //let fileLogData = sprintf "for elements:%A" (x |> Map.toArray |> Array.map fst)
+                        //File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [fileLogData])
+                        //File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [headerLog])
 
                         let singles = 
                             x
@@ -474,9 +488,11 @@ let dataPOI =
     |> Array.filter (fun x -> x.BinL.[0]="29")
     |> Array.mapi (fun id x -> {x with ID=id})
 
+dataPOI |> Array.filter (fun x -> x.ProteinL |> Array.exists (fun name -> name |> String.contains "Cre05.g237450"))
+
 let data8 = 
     ArabiProteome.itemsWithMapManFound
-    |> Array.filter (fun x -> x.BinL.[0]="8")
+    |> Array.filter (fun x -> x.BinL.[0]="24")
     |> Array.mapi (fun id x -> {x with ID=id})
 
 let dataCut = [|data8.[0]; data8.[11]; data8.[75]; data8.[69]|] |> Array.mapi (fun id i -> {i with ID=id})
@@ -485,7 +501,7 @@ let treeMM = readMM data8 data8.Length
 treeMM.GroupGain
 let walk = applySSN dataPOI dataPOI.Length      
 walk.GroupGain                              
-let combi = applySSNcombi dataPOI dataPOI.Length
+let combi = applySSNcombi data8 data8.Length
 combi.GroupGain
 
 let matrixOfN = 
@@ -507,14 +523,23 @@ walk
 |> fun (x,y) -> weightedEuclidean None [x;y] [0.;0.]
 
 let timeAra = [|15.;180.;2880.;5760.;(5760.+15.);(5760.+180.);(5760.+2880.);(5760.+5760.)|]
-Plots.drawKinetik (walk |> Tree.findNode ["1";"3"]) timeAra "subbin 8.3" |> Chart.Show//AsImage (StyleParam.ImageFormat.JPEG)
+let timeChla = [|1.;24.;25.;26.;28.;32.|]
+
+Plots.drawKinetik (walk |> Tree.findNode ["29";"2";"1";"1";"1";"1"]) timeChla "subbin 29.2.1.1.1.1" |> Chart.Show
+
+let dataPrep = [|[|dataPOI.[13]|]; [|dataPOI.[38]|]; 
+    [|dataPOI.[13];dataPOI.[38];dataPOI.[3];dataPOI.[20]|]; 
+    [|dataPOI.[19];dataPOI.[40];dataPOI.[52];dataPOI.[36]|]; 
+    [|dataPOI.[45];dataPOI.[50];dataPOI.[11];dataPOI.[34];dataPOI.[15]|]|]
+
+Plots.drawKinetikRange timeChla "subbin 29.2.1.1.1.1" dataPrep |> Chart.Show
 
 treeMM
 
-GePhi.sendToGephiFromTreeParam treeMM
+sendToGephiFromTreeParam treeMM
 
-GePhi.sendToGephiFromTreeParam walk
-GePhi.sendToGephiFromTreeParam combi
+sendToGephiFromTreeParam walk |> ignore
+sendToGephiFromTreeParam combi
 
 
 let pathsSorted =
@@ -525,7 +550,7 @@ let pathsSorted =
     |> Array.map (fst)
     
 let pathsSortedChildren =
-    ChlamyProteome.dataAll //ArabiProteome.itemsWithMapManFound
+    ArabiProteome.itemsWithMapManFound //ArabiProteome.itemsWithMapManFound
     |> Array.groupBy (fun x -> x.BinL.[0])
     |> Array.filter (fun (bin,l) -> l.Length > 2)
     |> Array.map (fun (bin,l) -> 
@@ -537,14 +562,14 @@ let pathsSortedChildren =
     |> Array.map fst
 
 let pathFile = @"c:\Users\mikha\Work-CSB\Projects\SSN\results\walkResults\"
-let neader = "Path\tcombi_GG\tcombi_Time\tcombi_DxC\twalk_GG\twalk_Time\twalk_DxC\tcomparison"
+let neader = "Path\tcombi_GG\tcombi_Time\tcombi_DxC\twalk_GG\twalk_Time\twalk_DxC\ttreeComparison\tTimeRatio"
 
 let lines = 
-    [|"1";"31"|]
+    pathsSortedChildren
     |> List.ofArray
     |> List.map (fun path -> 
         let data = 
-            ChlamyProteome.dataAll //ArabiProteome.itemsWithMapManFound
+            ArabiProteome.itemsWithMapManFound // ChlamyProteome.dataAll //ArabiProteome.itemsWithMapManFound
             |> Array.filter (fun x -> x.BinL.[0]=path)
             |> Array.mapi (fun id x -> {x with ID=id})
         let stopwatch = new System.Diagnostics.Stopwatch()
@@ -580,11 +605,12 @@ let lines =
             |> fun (x,y) -> weightedEuclidean None [x;y] [0.;0.]
 
         printfn "path: %s, %i" path data.Length 
-        printfn "combi GG; combi Time; walk GG; walk Time; walk DxC; comparison"
-        printfn "%s %f %f %f %f %f %f %i" path combi.GroupGain timeCombi dxcC walk.GroupGain timeWalk dxcW (Tree.treeComparison combi walk)
-        sprintf "%s\t%f\t%f\t%f\t%f\t%f\t%f\t%i" path combi.GroupGain timeCombi dxcC walk.GroupGain timeWalk dxcW (Tree.treeComparison combi walk)
+        printfn "combi GG; combi Time; walk GG; walk Time; walk DxC; comparison; TimeRatio"
+        printfn "%s %f %f %f %f %f %f %i %f" 
+            path combi.GroupGain timeCombi dxcC walk.GroupGain timeWalk dxcW (Tree.treeComparison combi walk) (timeCombi/timeWalk)
+        sprintf "%s\t%f\t%f\t%f\t%f\t%f\t%f\t%i\t%f" 
+            path combi.GroupGain timeCombi dxcC walk.GroupGain timeWalk dxcW (Tree.treeComparison combi walk) (timeCombi/timeWalk)
 
-        //(path, data.Length, combi.GroupGain, timeCombi, dxcC, walk.GroupGain, timeWalk, dxcW, (Tree.treeComparison combi walk))
         )
 
 
@@ -599,14 +625,13 @@ let linesWAcombi =
         let stopwatch = new System.Diagnostics.Stopwatch()
         stopwatch.Start()
         let walk = applySSN (data) data.Length
+        sendToGephiFromTreeParam walk |> ignore
         let timeWalk = (stopwatch.Elapsed.TotalSeconds)
-        //let combi = applySSNcombi (data) data.Length
-        //let timeCombi = (stopwatch.Elapsed.TotalSeconds)
         stopwatch.Stop()
         let matrixOfN = 
             data
             |> distMatrixWeightedOf distanceMatrixWeighted None
-            /// normalised
+            
         let dissMax = 
             matrixOfN
             |> Array2D.array2D_to_seq
@@ -621,22 +646,14 @@ let linesWAcombi =
             |> Tree.filterLeaves
             |> Analysis.pointDxC normMatrix
             |> fun (x,y) -> weightedEuclidean None [x;y] [0.;0.]
-    
-        //let dxcC = 
-        //    combi
-        //    |> Tree.filterLeaves
-        //    |> Analysis.pointDxC normMatrix
-        //    |> fun (x,y) -> weightedEuclidean None [x;y] [0.;0.]
 
         printfn "path: %s, %i" path data.Length 
         printfn "combi GG; combi Time; walk GG; walk Time; walk DxC; comparison"
         printfn "%s %f %f %f %f %f %f %i" path 0. 0. 0. walk.GroupGain timeWalk dxcW 0
         sprintf "%s\t%f\t%f\t%f\t%f\t%f\t%f\t%i" path 0. 0. 0. walk.GroupGain timeWalk dxcW 0
-
-        //(path, data.Length, combi.GroupGain, timeCombi, dxcC, walk.GroupGain, timeWalk, dxcW, (Tree.treeComparison combi walk))
         )
 
-File.AppendAllLines((sprintf "%s%s.txt" pathFile "oldChlamyProtData_"), neader :: linesWAcombi)
+File.AppendAllLines((sprintf "%s%s.txt" pathFile "oldChlamyProtData_NoRepetitions_d2s5"), neader :: linesWAcombi)
 
 
 /////////////////////////// ####### plot path walking tree
