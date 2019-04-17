@@ -1,14 +1,14 @@
-﻿#r @"c:\Users\mikha\source\repos\mathnet-numerics\src\Numerics\bin\Debug\netstandard2.0\MathNet.Numerics.dll"
-#r @"c:\Users\mikha\source\repos\SSN\SSN\bin\Debug\netstandard.dll"
+﻿#r @"..\lib\MathNet.Numerics.dll"
+#r @".\bin\Debug\netstandard.dll"
 
-#r @"c:\Users\mikha\source\repos\SSN\SSN\bin\Debug\BioFSharp.dll"
-#r @"c:\Users\mikha\source\repos\SSN\SSN\bin\Debug\BioFSharp.IO.dll"
-#r @"c:\Users\mikha\source\repos\SSN\SSN\bin\Debug\FSharpAux.dll"
-#r @"c:\Users\mikha\source\repos\SSN\SSN\bin\Debug\FSharpAux.IO.dll"
-#r @"c:\Users\mikha\source\repos\SSN\SSN\bin\Debug\Newtonsoft.Json.dll"
-#r @"c:\Users\mikha\source\repos\SSN\SSN\bin\Debug\FSharp.Stats.dll"
-#r @"c:\Users\mikha\source\repos\SSN\SSN\bin\Debug\FSharp.Plotly.dll"
-#r @"c:\Users\mikha\source\repos\SSN\SSN\bin\Debug\FSharpGephiStreamer.dll"
+#r @".\bin\Debug\BioFSharp.dll"
+#r @".\bin\Debug\BioFSharp.IO.dll"
+#r @".\bin\Debug\FSharpAux.dll"
+#r @".\bin\Debug\FSharpAux.IO.dll"
+#r @".\bin\Debug\Newtonsoft.Json.dll"
+#r @".\bin\Debug\FSharp.Stats.dll"
+#r @".\bin\Debug\FSharp.Plotly.dll"
+#r @".\bin\Debug\FSharpGephiStreamer.dll"
 
 #load "Types.fs"
 #load "PQ.fs"
@@ -42,7 +42,7 @@ open FunctionsExp
 
 ///// file for tracking a path during the whole treeCreate. 
 //let header = "StepN\tDirectionN\tmovedID\tMovedTo\tGainBefore\tGainNow" 
-//let pathLOG = @"c:\Users\mikha\Work-CSB\Projects\SSN\results\walkResults\PathLog_"
+//let pathLOG = @"..\results\PathLog_"
 
 //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [header])
 
@@ -50,7 +50,7 @@ open FunctionsExp
 //let fileLogName = "QDict_ChlaProt_Path29_d2s5"
 
 //let headerLog = "StepN\tDirectionN\tGainBefore\tGainNow" 
-//let pathLog = @"c:\Users\mikha\Work-CSB\Projects\SSN\results\walkResults\"
+//let pathLog = @"..\results\"
 
 //File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [headerLog])
 
@@ -561,7 +561,7 @@ let pathsSortedChildren =
     |> Array.filter (fun (bin,cn) -> cn<=10)
     |> Array.map fst
 
-let pathFile = @"c:\Users\mikha\Work-CSB\Projects\SSN\results\walkResults\"
+let pathFile = @"..\results\"
 let neader = "Path\tcombi_GG\tcombi_Time\tcombi_DxC\twalk_GG\twalk_Time\twalk_DxC\ttreeComparison\tTimeRatio"
 
 let lines = 
@@ -679,7 +679,7 @@ let dataProtein file =
     |> Seq.toArray
 
 let linesFromFile = 
-    dataProtein @"C:\Users\mikha\Work-CSB\Projects\SSN\results\walkResults\path8-2-11_k2_toPlot_problematic.txt"
+    dataProtein @"..\results\path8-2-11_k2_toPlot_problematic.txt"
     |> Array.map (fun x -> [(x.Features.[0]-1.,x.Features.[4]);(x.Features.[0],x.Features.[5])],x.Features.[1])
 
 linesFromFile.Length

@@ -333,8 +333,7 @@ module ChlamyProteome =
 
     //// Read Proteins database
 
-    let csvPath = @"c:\Users\mikha\Work-CSB\Data\HeatShockRecovery_sig_WardLinkage.tab" 
-    //let csvPath = @"c:\_n_mikhaylenko\Code_FSharp\Data\HeatShockRecovery_sig_WardLinkage.tab" 
+    let csvPath = @"..\data\HeatShockRecovery_sig_WardLinkage.txt" 
 
     let reader    = new SchemaReader.Csv.CsvReader<ProteinItemRead>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
 
@@ -386,7 +385,7 @@ module ChlamyTranscriptome =
         [<SchemaReader.Attribute.FieldAttribute("IDENTIFIER")>] [<IdentifierConverter>]       ProteinIdentifier   : string
         }
 
-    let csvPathMM = @"c:\Users\mikha\Work-CSB\Data\Creinhardtii_236 - ManMapList.txt" 
+    let csvPathMM = @"..\data\Creinhardtii_236 - ManMapList.txt" 
 
     let readerMM    = new SchemaReader.Csv.CsvReader<MapManRead>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
 
@@ -401,7 +400,7 @@ module ChlamyTranscriptome =
                                                                                 |])>]      [<ChlamyProteome.DoubleArrayConverter>]        Features        : float []
         }
 
-    let csvPathT = @"c:\Users\mikha\Work-CSB\Data\TranscriptomeData-TuKl\resultTable_hsre.tsv" 
+    let csvPathT = @"..\data\TranscriptomeData-TuKl\resultTable_hsre.tsv" 
 
     let readerT    = new SchemaReader.Csv.CsvReader<ProteinItemReadT>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
 
@@ -450,7 +449,7 @@ module ArabiTranscriptome =
         }
 
     //let pathMM = @"c:\_n_mikhaylenko\Code_FSharp\Data\AT-MapManList.txt" 
-    let pathMM = @"c:\Users\mikha\Work-CSB\Data\AT-MapManList.txt" 
+    let pathMM = @"..\data\AT-MapManList.txt" 
 
 
     let readerMM  = new SchemaReader.Csv.CsvReader<MapManRead>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
@@ -548,7 +547,7 @@ module ArabiTranscriptome =
         }
 
     //let csvPathTA = @"c:\_n_mikhaylenko\Code_FSharp\Data\Kinetiks from Munich\CountData.csv" 
-    let csvPathTA = @"c:\Users\mikha\Work-CSB\Data\Kinetiks\CountData.csv" 
+    let csvPathTA = @"..\data\Kinetiks\CountData.csv" 
 
     let readerTA    = new SchemaReader.Csv.CsvReader<AProteinItemReadT>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
 
@@ -597,7 +596,7 @@ module ArabiTranscriptome =
     /// Filter significant genes
 
     //let pathSign = @"c:\_n_mikhaylenko\Code_FSharp\Data\Kinetiks from Munich\DESeq2\
-    let pathSign = @"c:\Users\mikha\Work-CSB\Data\Kinetiks\DESeq2\"
+    let pathSign = @"..\data\Kinetiks\DESeq2\"
 
     let expModeHeat = "Hitze", "Heat"
     let expModeCold = "Kalt", "Cold"
@@ -648,7 +647,7 @@ module ArabiTranscriptome =
 
 module ArabiProteome =
     
-    let csvPathTA = @"c:\Users\mikha\Work-CSB\Data\Proteome_201902\SFBcore_Heat_Protein.txt" 
+    let csvPathTA = @"..\data\Proteome_201902\SFBcore_Heat_Protein.txt" 
     
     type NameConverter() = 
         inherit SchemaReader.Attribute.ConverterAttribute()

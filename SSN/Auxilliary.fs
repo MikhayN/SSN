@@ -447,7 +447,7 @@ module Write =
     let allPathsWrite listN items =
         //let pathFile = @"c:\_n_mikhaylenko\Code_FSharp\Projects\SSN\results\check\"
         //let pathFile = @"D:\Nathan\results\tablesAraArraysOnly\"
-        let pathFile = @"c:\Users\mikha\Work-CSB\Projects\SSN\results\check\"
+        let pathFile = @"..\results\"
 
         listN
         |> Array.mapi (fun i n ->
@@ -474,60 +474,60 @@ module Write =
                         )
 
     ////
-    let writeFileFromResult proteinList (fileName: string) =
-        let proteinAbb =
-            (File.ReadAllLines (@"c:\_n_mikhaylenko\BioDB\Data\PhytozomeV11\Creinhardtii\annotation\Creinhardtii_281_v5.5.geneName.txt"))
-            |> Array.map (fun s -> s |> String.toWords |> Seq.toList |> List.cutAfterN 2 |> fst)
-        let makeLine protein =
-            let id = protein.ID
-            let name =  
-                try
-                    protein.ProteinL |> Array.map (fun protein -> proteinAbb |> Array.find (fun line -> (line.Head)=protein) |> List.tail) |> List.concat
-                with
-                    |ex -> [""]
+    //let writeFileFromResult proteinList (fileName: string) =
+    //    let proteinAbb =
+    //        (File.ReadAllLines (@"c:\_n_mikhaylenko\BioDB\Data\PhytozomeV11\Creinhardtii\annotation\Creinhardtii_281_v5.5.geneName.txt"))
+    //        |> Array.map (fun s -> s |> String.toWords |> Seq.toList |> List.cutAfterN 2 |> fst)
+    //    let makeLine protein =
+    //        let id = protein.ID
+    //        let name =  
+    //            try
+    //                protein.ProteinL |> Array.map (fun protein -> proteinAbb |> Array.find (fun line -> (line.Head)=protein) |> List.tail) |> List.concat
+    //            with
+    //                |ex -> [""]
  
-            sprintf "%i\t%A\t%A" id protein.ProteinL name
-        let header = "Protein_Group_id\tProteins_Code\tProteins_Names"
-        let lines =
-            proteinList
-            |> List.map (fun i -> makeLine i)
+    //        sprintf "%i\t%A\t%A" id protein.ProteinL name
+    //    let header = "Protein_Group_id\tProteins_Code\tProteins_Names"
+    //    let lines =
+    //        proteinList
+    //        |> List.map (fun i -> makeLine i)
         
-        File.WriteAllLines (sprintf "c:\\_n_mikhaylenko\\Code_FSharp\\Projects\\DynamicOntology\\results\\tables\\%s.txt" fileName,header::lines)
+    //    File.WriteAllLines (sprintf "c:\\_n_mikhaylenko\\Code_FSharp\\Projects\\DynamicOntology\\results\\tables\\%s.txt" fileName,header::lines)
 
-    let writeFileSMlist (proteinSList: (string list) list) (proteinMList: (string list) list) (tree: Node<string, Item>) (fileName: string) =
-        let pathAbb = @"c:\_n_mikhaylenko\BioDB\Data\PhytozomeV11\Creinhardtii\annotation\Creinhardtii_281_v5.5.geneName.txt"
-        let pathFile = "c:\\_n_mikhaylenko\\Code_FSharp\\Projects\\DynamicOntology\\results\\tables\\"
-        let proteinAbb =
-            (File.ReadAllLines pathAbb)
-            |> Array.map (fun s -> s |> String.toWords |> Seq.toList |> fun x -> x.[0 .. 2])
-        let makeLine protein =
-            let id = protein.ID
-            let name =  
-                try
-                    protein.ProteinL
-                    |> Array.toList
-                    |> List.map (fun protein ->
-                        proteinAbb
-                        |> Array.find (fun line -> (line.Head)=protein)
-                        |> List.tail)
-                    |> List.concat
-                with
-                    |ex -> ["notFound"]
-            sprintf "%i\t%A\t%A" id protein.ProteinL name
+    //let writeFileSMlist (proteinSList: (string list) list) (proteinMList: (string list) list) (tree: Node<string, Item>) (fileName: string) =
+    //    let pathAbb = @"c:\_n_mikhaylenko\BioDB\Data\PhytozomeV11\Creinhardtii\annotation\Creinhardtii_281_v5.5.geneName.txt"
+    //    let pathFile = "c:\\_n_mikhaylenko\\Code_FSharp\\Projects\\DynamicOntology\\results\\tables\\"
+    //    let proteinAbb =
+    //        (File.ReadAllLines pathAbb)
+    //        |> Array.map (fun s -> s |> String.toWords |> Seq.toList |> fun x -> x.[0 .. 2])
+    //    let makeLine protein =
+    //        let id = protein.ID
+    //        let name =  
+    //            try
+    //                protein.ProteinL
+    //                |> Array.toList
+    //                |> List.map (fun protein ->
+    //                    proteinAbb
+    //                    |> Array.find (fun line -> (line.Head)=protein)
+    //                    |> List.tail)
+    //                |> List.concat
+    //            with
+    //                |ex -> ["notFound"]
+    //        sprintf "%i\t%A\t%A" id protein.ProteinL name
 
-        let mergeHeader = "Merged proteins from bin "
-        let splitHeader = "Splitted proteins from bin "
-        let header = "Protein_Group_id\tProteins_Code\tProteins_Names"
-        let linesSplitted =
-            proteinSList
-            |> List.map (fun x -> x,(Tree.findNode x tree))
-            |> List.map (fun (bin,list) -> ((sprintf "%s%A" splitHeader bin) |> String.filter (fun c -> c<>'\"'))::header::( list |> Array.toList |> List.map makeLine))
-            |> List.concat
-        let linesMerged =
-            proteinMList
-            |> List.map (fun x -> x,(Tree.findNode x tree))
-            |> List.map (fun (bin,list) -> ((sprintf "%s%A" mergeHeader bin) |> String.filter (fun c -> c<>'\"'))::header::( list |> Array.toList |> List.map makeLine))
-            |> List.concat       
-        File.WriteAllLines((sprintf "%s%s.txt" pathFile fileName), (List.append linesSplitted linesMerged))
+    //    let mergeHeader = "Merged proteins from bin "
+    //    let splitHeader = "Splitted proteins from bin "
+    //    let header = "Protein_Group_id\tProteins_Code\tProteins_Names"
+    //    let linesSplitted =
+    //        proteinSList
+    //        |> List.map (fun x -> x,(Tree.findNode x tree))
+    //        |> List.map (fun (bin,list) -> ((sprintf "%s%A" splitHeader bin) |> String.filter (fun c -> c<>'\"'))::header::( list |> Array.toList |> List.map makeLine))
+    //        |> List.concat
+    //    let linesMerged =
+    //        proteinMList
+    //        |> List.map (fun x -> x,(Tree.findNode x tree))
+    //        |> List.map (fun (bin,list) -> ((sprintf "%s%A" mergeHeader bin) |> String.filter (fun c -> c<>'\"'))::header::( list |> Array.toList |> List.map makeLine))
+    //        |> List.concat       
+    //    File.WriteAllLines((sprintf "%s%s.txt" pathFile fileName), (List.append linesSplitted linesMerged))
 
 
