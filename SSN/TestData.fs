@@ -12,6 +12,9 @@ open System.IO
  
 module General =
 
+    /// change the path to the local adress of the repo
+    let pathToData = @"c:\Users\mikha\source\repos\SSN\"
+
     // some special custom input info
     let weightProt = seq [0.125;0.78;0.0625;0.09375;0.1875;0.125] 
     let weightTran = seq [0.125;0.78;0.78;0.0625;0.09375;0.1875;0.125] 
@@ -333,7 +336,7 @@ module ChlamyProteome =
 
     //// Read Proteins database
 
-    let csvPath = @"..\data\HeatShockRecovery_sig_WardLinkage.txt" 
+    let csvPath = sprintf @"%sdata\HeatShockRecovery_sig_WardLinkage.txt" General.pathToData
 
     let reader    = new SchemaReader.Csv.CsvReader<ProteinItemRead>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
 
@@ -385,7 +388,7 @@ module ChlamyTranscriptome =
         [<SchemaReader.Attribute.FieldAttribute("IDENTIFIER")>] [<IdentifierConverter>]       ProteinIdentifier   : string
         }
 
-    let csvPathMM = @"..\data\Creinhardtii_236 - ManMapList.txt" 
+    let csvPathMM = sprintf @"%sdata\Creinhardtii_236 - ManMapList.txt" General.pathToData
 
     let readerMM    = new SchemaReader.Csv.CsvReader<MapManRead>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
 
@@ -400,7 +403,7 @@ module ChlamyTranscriptome =
                                                                                 |])>]      [<ChlamyProteome.DoubleArrayConverter>]        Features        : float []
         }
 
-    let csvPathT = @"..\data\TranscriptomeData-TuKl\resultTable_hsre.tsv" 
+    let csvPathT = sprintf @"%sdata\TranscriptomeData-TuKl\resultTable_hsre.tsv" General.pathToData
 
     let readerT    = new SchemaReader.Csv.CsvReader<ProteinItemReadT>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
 
@@ -448,10 +451,8 @@ module ArabiTranscriptome =
         [<SchemaReader.Attribute.FieldAttribute("IDENTIFIER")>] [<IdentifierConverter>]       ProteinIdentifier   : string
         }
 
-    //let pathMM = @"c:\_n_mikhaylenko\Code_FSharp\Data\AT-MapManList.txt" 
-    let pathMM = @"..\data\AT-MapManList.txt" 
-
-
+    let pathMM = sprintf @"%sdata\AT-MapManList.txt" General.pathToData
+    
     let readerMM  = new SchemaReader.Csv.CsvReader<MapManRead>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
 
     /// Data to find mapman bin for proteins
@@ -497,21 +498,21 @@ module ArabiTranscriptome =
         [<SchemaReader.Attribute.FieldAttribute("\"\"")>]       [<ArabidopsisName>]           ProteinGroup    : string
         [<SchemaReader.Attribute.FieldAttribute(
         
-            [|"\"Hlig_t_1_r_1_d_TRUE\""; "\"Hlig_t_1_r_2_d_TRUE\"";
-            "\"Hlig_t_1_r_3_d_TRUE\""; "\"Hlig_t_15_r_1_d_TRUE\"";
-            "\"Hlig_t_15_r_2_d_TRUE\""; "\"Hlig_t_15_r_3_d_TRUE\"";
-            "\"Hlig_t_180_r_1_d_TRUE\""; "\"Hlig_t_180_r_2_d_TRUE\"";
-            "\"Hlig_t_180_r_3_d_TRUE\""; "\"Hlig_t_2880_r_1_d_TRUE\"";
-            "\"Hlig_t_2880_r_2_d_TRUE\""; "\"Hlig_t_2880_r_3_d_TRUE\"";
-            "\"Hlig_t_5760_r_1_d_TRUE\""; "\"Hlig_t_5760_r_2_d_TRUE\"";
-            "\"Hlig_t_5760_r_3_d_TRUE\""; "\"Hlig_t_1_r_1_d_FALSE\"";
-            "\"Hlig_t_1_r_2_d_FALSE\""; "\"Hlig_t_1_r_3_d_FALSE\"";
-            "\"Hlig_t_15_r_1_d_FALSE\""; "\"Hlig_t_15_r_2_d_FALSE\"";
-            "\"Hlig_t_15_r_3_d_FALSE\""; "\"Hlig_t_180_r_1_d_FALSE\"";
-            "\"Hlig_t_180_r_2_d_FALSE\""; "\"Hlig_t_180_r_3_d_FALSE\"";
-            "\"Hlig_t_2880_r_1_d_FALSE\""; "\"Hlig_t_2880_r_2_d_FALSE\"";
-            "\"Hlig_t_2880_r_3_d_FALSE\""; "\"Hlig_t_5760_r_1_d_FALSE\"";
-            "\"Hlig_t_5760_r_2_d_FALSE\""; "\"Hlig_t_5760_r_3_d_FALSE\""|])>]      [<TripleArrayConverter>]        Features        : float [] []
+            //[|"\"Hlig_t_1_r_1_d_TRUE\""; "\"Hlig_t_1_r_2_d_TRUE\"";
+            //"\"Hlig_t_1_r_3_d_TRUE\""; "\"Hlig_t_15_r_1_d_TRUE\"";
+            //"\"Hlig_t_15_r_2_d_TRUE\""; "\"Hlig_t_15_r_3_d_TRUE\"";
+            //"\"Hlig_t_180_r_1_d_TRUE\""; "\"Hlig_t_180_r_2_d_TRUE\"";
+            //"\"Hlig_t_180_r_3_d_TRUE\""; "\"Hlig_t_2880_r_1_d_TRUE\"";
+            //"\"Hlig_t_2880_r_2_d_TRUE\""; "\"Hlig_t_2880_r_3_d_TRUE\"";
+            //"\"Hlig_t_5760_r_1_d_TRUE\""; "\"Hlig_t_5760_r_2_d_TRUE\"";
+            //"\"Hlig_t_5760_r_3_d_TRUE\""; "\"Hlig_t_1_r_1_d_FALSE\"";
+            //"\"Hlig_t_1_r_2_d_FALSE\""; "\"Hlig_t_1_r_3_d_FALSE\"";
+            //"\"Hlig_t_15_r_1_d_FALSE\""; "\"Hlig_t_15_r_2_d_FALSE\"";
+            //"\"Hlig_t_15_r_3_d_FALSE\""; "\"Hlig_t_180_r_1_d_FALSE\"";
+            //"\"Hlig_t_180_r_2_d_FALSE\""; "\"Hlig_t_180_r_3_d_FALSE\"";
+            //"\"Hlig_t_2880_r_1_d_FALSE\""; "\"Hlig_t_2880_r_2_d_FALSE\"";
+            //"\"Hlig_t_2880_r_3_d_FALSE\""; "\"Hlig_t_5760_r_1_d_FALSE\"";
+            //"\"Hlig_t_5760_r_2_d_FALSE\""; "\"Hlig_t_5760_r_3_d_FALSE\""|])>]      [<TripleArrayConverter>]        Features        : float [] []
 
             //[|"\"Cold_t_1_r_1_d_TRUE\""; "\"Cold_t_1_r_2_d_TRUE\"";
             //"\"Cold_t_1_r_3_d_TRUE\""; "\"Cold_t_15_r_1_d_TRUE\"";
@@ -529,25 +530,24 @@ module ArabiTranscriptome =
             //"\"Cold_t_2880_r_3_d_FALSE\""; "\"Cold_t_5760_r_1_d_FALSE\"";
             //"\"Cold_t_5760_r_2_d_FALSE\""; "\"Cold_t_5760_r_3_d_FALSE\""|])>]      [<TripleArrayConverter>]        Features        : float [] []
         
-            //[|"\"Heat_t_1_r_1_d_TRUE\""; "\"Heat_t_1_r_2_d_TRUE\"";
-            //"\"Heat_t_1_r_3_d_TRUE\""; "\"Heat_t_15_r_1_d_TRUE\"";
-            //"\"Heat_t_15_r_2_d_TRUE\""; "\"Heat_t_15_r_3_d_TRUE\"";
-            //"\"Heat_t_180_r_1_d_TRUE\""; "\"Heat_t_180_r_2_d_TRUE\"";
-            //"\"Heat_t_180_r_3_d_TRUE\""; "\"Heat_t_2880_r_1_d_TRUE\"";
-            //"\"Heat_t_2880_r_2_d_TRUE\""; "\"Heat_t_2880_r_3_d_TRUE\"";
-            //"\"Heat_t_5760_r_1_d_TRUE\""; "\"Heat_t_5760_r_2_d_TRUE\"";
-            //"\"Heat_t_5760_r_3_d_TRUE\""; "\"Heat_t_1_r_1_d_FALSE\"";
-            //"\"Heat_t_1_r_2_d_FALSE\""; "\"Heat_t_1_r_3_d_FALSE\"";
-            //"\"Heat_t_15_r_1_d_FALSE\""; "\"Heat_t_15_r_2_d_FALSE\"";
-            //"\"Heat_t_15_r_3_d_FALSE\""; "\"Heat_t_180_r_1_d_FALSE\"";
-            //"\"Heat_t_180_r_2_d_FALSE\""; "\"Heat_t_180_r_3_d_FALSE\"";
-            //"\"Heat_t_2880_r_1_d_FALSE\""; "\"Heat_t_2880_r_2_d_FALSE\"";
-            //"\"Heat_t_2880_r_3_d_FALSE\""; "\"Heat_t_5760_r_1_d_FALSE\"";
-            //"\"Heat_t_5760_r_2_d_FALSE\""; "\"Heat_t_5760_r_3_d_FALSE\""|])>]      [<TripleArrayConverter>]        Features        : float [] []
+            [|"\"Heat_t_1_r_1_d_TRUE\""; "\"Heat_t_1_r_2_d_TRUE\"";
+            "\"Heat_t_1_r_3_d_TRUE\""; "\"Heat_t_15_r_1_d_TRUE\"";
+            "\"Heat_t_15_r_2_d_TRUE\""; "\"Heat_t_15_r_3_d_TRUE\"";
+            "\"Heat_t_180_r_1_d_TRUE\""; "\"Heat_t_180_r_2_d_TRUE\"";
+            "\"Heat_t_180_r_3_d_TRUE\""; "\"Heat_t_2880_r_1_d_TRUE\"";
+            "\"Heat_t_2880_r_2_d_TRUE\""; "\"Heat_t_2880_r_3_d_TRUE\"";
+            "\"Heat_t_5760_r_1_d_TRUE\""; "\"Heat_t_5760_r_2_d_TRUE\"";
+            "\"Heat_t_5760_r_3_d_TRUE\""; "\"Heat_t_1_r_1_d_FALSE\"";
+            "\"Heat_t_1_r_2_d_FALSE\""; "\"Heat_t_1_r_3_d_FALSE\"";
+            "\"Heat_t_15_r_1_d_FALSE\""; "\"Heat_t_15_r_2_d_FALSE\"";
+            "\"Heat_t_15_r_3_d_FALSE\""; "\"Heat_t_180_r_1_d_FALSE\"";
+            "\"Heat_t_180_r_2_d_FALSE\""; "\"Heat_t_180_r_3_d_FALSE\"";
+            "\"Heat_t_2880_r_1_d_FALSE\""; "\"Heat_t_2880_r_2_d_FALSE\"";
+            "\"Heat_t_2880_r_3_d_FALSE\""; "\"Heat_t_5760_r_1_d_FALSE\"";
+            "\"Heat_t_5760_r_2_d_FALSE\""; "\"Heat_t_5760_r_3_d_FALSE\""|])>]      [<TripleArrayConverter>]        Features        : float [] []
         }
 
-    //let csvPathTA = @"c:\_n_mikhaylenko\Code_FSharp\Data\Kinetiks from Munich\CountData.csv" 
-    let csvPathTA = @"..\data\Kinetiks\CountData.csv" 
+    let csvPathTA = sprintf @"%sdata\Kinetiks\CountData.csv" General.pathToData
 
     let readerTA    = new SchemaReader.Csv.CsvReader<AProteinItemReadT>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)
 
@@ -595,8 +595,7 @@ module ArabiTranscriptome =
 
     /// Filter significant genes
 
-    //let pathSign = @"c:\_n_mikhaylenko\Code_FSharp\Data\Kinetiks from Munich\DESeq2\
-    let pathSign = @"..\data\Kinetiks\DESeq2\"
+    let pathSign = sprintf @"%sdata\Kinetiks\DESeq2\" General.pathToData 
 
     let expModeHeat = "Hitze", "Heat"
     let expModeCold = "Kalt", "Cold"
@@ -647,7 +646,7 @@ module ArabiTranscriptome =
 
 module ArabiProteome =
     
-    let csvPathTA = @"..\data\Proteome_201902\SFBcore_Heat_Protein.txt" 
+    let csvPathTA = sprintf @"%sdata\Proteome_201902\SFBcore_Heat_Protein.txt" General.pathToData
     
     type NameConverter() = 
         inherit SchemaReader.Attribute.ConverterAttribute()

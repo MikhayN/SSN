@@ -550,7 +550,7 @@ let pathsSorted =
     |> Array.map (fst)
     
 let pathsSortedChildren =
-    ArabiProteome.itemsWithMapManFound //ArabiProteome.itemsWithMapManFound
+    ArabiTranscriptome.itemsWithMapManIdentified //ArabiProteome.itemsWithMapManFound //ArabiProteome.itemsWithMapManFound
     |> Array.groupBy (fun x -> x.BinL.[0])
     |> Array.filter (fun (bin,l) -> l.Length > 2)
     |> Array.map (fun (bin,l) -> 
