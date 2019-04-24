@@ -133,20 +133,22 @@ let pathsSortedChildren =
     |> Array.sortBy (fun (_,cn,_) -> cn)
     |> Array.map (fun (x,_,_) -> x)
 
+
 let dataPOI = 
     ChlamyProteome.dataAll
-    |> Array.filter (fun x -> x.BinL.[0]="1")
+    |> Array.filter (fun x -> x.BinL.[0]="29")
     |> Array.mapi (fun id x -> {x with ID=id})
+
+
+let classes = trueClasses dataPOI
+
+classes.Length
 
 let rootClusters =
     dataPOI
     |> groupClust
 
 rootClusters.Length 
-
-let classes = trueClasses dataPOI
-
-classes.Length
 
 let leavesClusters =
     classes

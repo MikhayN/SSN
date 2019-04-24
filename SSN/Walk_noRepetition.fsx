@@ -26,6 +26,7 @@ open FSharpAux
 open FSharp.Plotly
 open FSharp.Stats
 
+open Functions
 open Functions.SSN
 open TestData
 open GePhi
@@ -479,6 +480,8 @@ let applySSNcombi data setN = createTreeWalking (SSN.getStepGainNodeSetnR setN) 
 let applySSN data setN = createTreeWalking (SSN.getStepGainNodeSetnR setN) None (SSN_walk (FunctionsExp.PreClusterFunctions.kmeanGroupsKKZ, (walkingFn))) data
 let readMM data setN = createTreeWalking (SSN.getStepGainNodeSetnR setN) None MM data
 
+let asyncApplySSN data setN = async {return (applySST_walk setN data )}
+
 applySSN (TestData.SynData.data1) 10
 applySSNcombi (TestData.SynData.data1) 10
 
@@ -488,6 +491,28 @@ let dataPOI =
     ChlamyProteome.dataAll
     |> Array.filter (fun x -> x.BinL.[0]="1")
     |> Array.mapi (fun id x -> {x with ID=id})
+
+let dataSet =
+    [|ChlamyProteome.dataAll
+    |> Array.filter (fun x -> x.BinL.[0]="1")
+    |> Array.mapi (fun id x -> {x with ID=id});
+    ChlamyProteome.dataAll
+    |> Array.filter (fun x -> x.BinL.[0]="13")
+    |> Array.mapi (fun id x -> {x with ID=id});
+    ChlamyProteome.dataAll
+    |> Array.filter (fun x -> x.BinL.[0]="11")
+    |> Array.mapi (fun id x -> {x with ID=id});
+    ChlamyProteome.dataAll
+    |> Array.filter (fun x -> x.BinL.[0]="31")
+    |> Array.mapi (fun id x -> {x with ID=id})|]
+
+let trees =
+    dataSet
+    |> Array.map (fun x -> asyncApplySSN x x.Length)
+    |> Async.Parallel
+    |> Async.RunSynchronously
+
+trees.[3]
 
 dataPOI |> Array.filter (fun x -> x.ProteinL |> Array.exists (fun name -> name |> String.contains "Cre05.g237450"))
 

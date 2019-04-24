@@ -1521,4 +1521,8 @@ let applySSNcombi setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN)  (N
 let applySSNold setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN) (None) (SSN_pre ((KMeanSwapFunctions.kmeanSwapShuffleOld 1), SSN.clusterHier)) data
 let applySST_walk setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (Clustering.kmeanGroupsKKZ, (Walk.walkingFn))) data
 
+let asyncApplySSN setN data = async {return (applySST_walk setN data)}
+
+
+
 
