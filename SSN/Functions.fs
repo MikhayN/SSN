@@ -1,6 +1,7 @@
 ﻿module Functions
 
 open Types
+open PQ
 
 open FSharp.Stats
 open FSharpAux
@@ -232,6 +233,25 @@ module SSN =
 
             let children = 
                 match mode with
+                |MM_raw -> // raw MapMan ontology without leaves breaking
+                    let map = 
+                        nodeMembers 
+                        |> Array.filter (fun i -> i.BinL.Length > depth+1)
+                        |> (fun i -> 
+                                match i with
+                                |[||] -> 
+                                    Map.empty
+                                |_ ->
+                                    i
+                                    |> Array.groupBy (fun i -> i.BinL.[depth+1]) 
+                                    |> Map.ofArray)
+                    if map=Map.empty then
+                        Map.empty
+                    else 
+                        map
+                        |> Map.map (fun key nodes -> 
+                                            let dPredSum' = dSumFn (groupIDFn nodes) (groupIDFn nodeMembers) matrix
+                                            loop nodes (depth+1) dPredSum')
                 |MM -> // MapMan with broken leaves
                     if nodeMembers.Length=1 then
                         Map.empty
@@ -342,7 +362,8 @@ module SSN =
                     if (nodeMembers.Length=1) 
                             || (nodeMembers.Length=0) 
                             || (String.contains "mix" (String.Concat nodeMembers.[0].BinL)) 
-                            || (String.contains "c" (String.Concat nodeMembers.[0].BinL)) then 
+                            || (String.contains "c" (String.Concat nodeMembers.[0].BinL)) 
+                            || (String.contains "|" (String.Concat nodeMembers.[0].BinL)) then 
                         Map.empty
                     else 
                         (breakGroup nodeMembers depth)
@@ -381,12 +402,42 @@ module SSN =
                         ) (Map.empty,Map.empty) // here as state should be this singles (first) saved and optimal conf
                         |> snd
 
+                |SST_walk (kmeanKKZ, walkFn) -> // with kMean as a start point for gain walking
+                    if (nodeMembers.Length=1) 
+                            || (nodeMembers.Length=0) 
+                            || (String.contains "|" (String.Concat nodeMembers.[0].BinL)) then 
+                        Map.empty
+                    else 
+                        (breakGroup nodeMembers depth)
+                        |> (fun x -> 
+                                                
+                            let singles = 
+                                x
+                                |> Map.fold (fun state key nodes ->
+                                        let dPredSum' = dSumFn (groupIDFn nodes) (groupIDFn nodeMembers) matrix
+                                        state 
+                                        |> Map.add key (loop nodes (depth+1) dPredSum')) (Map.empty)
+
+                            walkFn kmeanKKZ depth matrix singles gainFn x 
+                            |> Map.fold (fun state key nodes ->
+                                match (singles.TryFind key) with
+                                | None ->
+                                    let dPredSum' = dSumFn (groupIDFn nodes) (groupIDFn nodeMembers) matrix
+                                    state 
+                                    |> Map.add key (loop nodes (depth+1) dPredSum')
+                                | Some x ->
+                                    state 
+                                    |> Map.add key x                                                                   
+                            ) (Map.empty) )
+
             let confGain = confGainFn children
             {
             Member = nodeMembers;
             Children = 
                 match mode with
                 |MM -> 
+                    children
+                |MM_raw -> 
                     children
                 |_ -> 
                     if  (confGain > stepGain) then 
@@ -844,14 +895,630 @@ module KMeanSwapFunctions =
         |> Array2D.toJaggedArray
         |> Array.map (fun a -> a |> Array.maxBy (fun m -> m |> Map.toArray |> Array.map (snd >> SSN.groupIDFn) |> gainstepcheck f matrixItems))
 
+module Clustering =
+    
+    
+    let pairwiseCorrAverage (x:matrix) (y:matrix) =
+        let xN = x.Dimensions |> fst
+        let yN = y.Dimensions |> fst
+        let m = Array2D.create xN yN 0.
+        for rowI in 0..(xN-1) do
+            for colI in 0..(yN-1) do
+                let tmp = SSN.weightedEuclidean None (x.Row rowI) (y.Row colI) 
+                m.[rowI,colI] <- tmp
+        m 
+        |> Array2D.array2D_to_seq 
+        |> Seq.average
+
+    let distMatrix (matrixA: string * matrix) (matrixB: string * matrix) =
+        let mA = snd matrixA
+        let mB = snd matrixB
+        pairwiseCorrAverage mA mB
+
+    let intiCgroups (input: (string*matrix) array) k : ((string*matrix) []) =
+
+        let dmatrix = input |> Array.map (fun (bin,data) -> (data |> Matrix.enumerateColumnWise (fun x -> x |> Seq.median) )) |> MatrixTopLevelOperators.matrix
+        
+        //let cvmax = // find a feature with the biggest variance and return the (row Number, values of the feature), sorted by the values 
+        //    dmatrix
+        //    |> Matrix.Generic.enumerateColumnWise Seq.var
+        //    |> Seq.zip (Matrix.Generic.enumerateColumnWise id dmatrix)
+        //    |> Seq.maxBy snd
+        //    |> fst
+        //    |> Seq.mapi (fun rowI value -> (rowI,value)) 
+        //    |> Seq.toArray 
+        //    |> Array.sortBy snd
+
+        let cvmax = // set the most important feature at 24H (with index 1) 
+            dmatrix
+            |> Matrix.Generic.enumerateColumnWise Seq.var
+            |> Seq.zip (Matrix.Generic.enumerateColumnWise id dmatrix)
+            |> Seq.item 1
+            |> fst
+            |> Seq.mapi (fun rowI value -> (rowI,value)) 
+            |> Seq.toArray 
+            |> Array.sortBy snd
+
+        if cvmax.Length < k then failwithf "Number of data points must be at least %i" k        
+        let chunkSize = cvmax.Length / k
+        let midChunk  = chunkSize / 2
+        [ for i=1 to k do
+            let index = 
+                match (chunkSize * i) with
+                | x when x < cvmax.Length -> x - midChunk
+                | x                       -> chunkSize * (i - 1) + ((cvmax.Length - chunkSize * (i - 1)) / 2)
+            //printfn "Array.lenght = %i and index = %i" cvmax.Length (index-1)
+            yield cvmax.[index-1] |> fst]
+        |> Seq.map (fun rowI -> input.[rowI])
+        |> Seq.toArray
+
+    /// KKZ deterministic centroid initialization for kMean clustering
+    let initCgroupsKKZ (data: (string*matrix) array) k =
+        let centroid1 =
+            data 
+            |> Array.maxBy 
+                (fun x -> 
+                    x 
+                    |> snd
+                    |> Matrix.enumerateColumnWise (Seq.mean) 
+                    |> fun xx ->  sqrt ( xx |> Seq.sumBy (fun i -> i*i))
+                )
+        let LeaveData d c =
+            d |> Array.removeIndex (Array.FindIndex<string*matrix>(d, fun x -> x=c))
+
+        let rec loop dataRest kRest centroids =
+            if kRest=1 then   
+                centroids
+            else    
+                let newC = 
+                    dataRest 
+                    |> Array.map (fun (s,p) -> 
+                        (s,p), centroids |> List.map (fun (sc,c) -> pairwiseCorrAverage (p)  (c)) |> List.min )
+                    |> Array.maxBy snd 
+                    |> fst
+                loop (LeaveData dataRest newC) (kRest-1) (newC::centroids)
+
+        loop (LeaveData data centroid1) k [centroid1]
+        |> List.toArray
+
+    // Recompute Centroid as average of given sample (for kmeans)
+    let updateCentroid (current: string * matrix) (sample: (string * matrix) []) = // rewrite it in matrix!
+        let size = sample.Length
+        match size with
+        | 0 -> current
+        | _ ->
+            ("", 
+                sample
+                |> Array.map (fun (_,x) -> x.ToArray2D() |> Array2D.toJaggedArray)
+                |> Array.concat
+                |> fun p -> MatrixTopLevelOperators.matrix p)
+
+    //    /// Convert centroids into an initial scheme for K-Mean-Swap
+    let centroidsToScheme (input: Item [] []) (centroid: matrix []) (scheme: int []) : ((string*(Item [])) []) =
+        let sorted = input |> Array.indexed |>  Array.sortByDescending ( fun (i,x) -> Array.length x)
+        let rec loop itemsRest groupID =
+            [|if groupID=scheme.Length then   
+                let binName = itemsRest |> Array.concat |> Array.map (fun p -> p.ID) |> Array.sort |> fun i -> String.Join("|",i)
+                yield (binName,itemsRest |> Array.concat)
+            else    
+                let (itemsCluster,itemsNew) = 
+                    itemsRest 
+                    |> Array.sortByDescending 
+                        (fun i -> pairwiseCorrAverage centroid.[groupID] (i |> Array.map (fun x -> x.dataL) |> MatrixTopLevelOperators.matrix))
+                    |> Array.splitAt scheme.[groupID]
+                let binName = itemsCluster |> Array.concat |> Array.map (fun p -> p.ID) |> Array.sort |> fun i -> String.Join("|",i)
+                yield (binName,itemsCluster |> Array.concat)
+                yield! loop itemsNew (groupID+1)
+            |]
+        loop (input) 0
+
+    let clustersToCentroidMatrix (clusters: Item [] [] []) : matrix [] =
+        clusters
+        |> Array.map (fun cluster -> 
+            cluster
+            |> Array.map (fun group ->
+                group |> Array.map (fun x -> x.dataL)
+                )
+            |> Array.concat
+            |> MatrixTopLevelOperators.matrix
+            )
+
+    let centroidsToMatrix (centroids: Item [] list) : matrix [] =
+        centroids
+        |> List.toArray
+        |> Array.map (fun centroid ->
+            centroid |> Array.map (fun x -> x.dataL) |> MatrixTopLevelOperators.matrix
+            )
+
+    let kkzSingle (data: Item []) k =
+        let centroid1 =
+            data |> Array.maxBy (fun x -> sqrt ( x.dataL |> Array.sumBy (fun i -> i*i)))
+        let LeaveData d c =
+            d |> Array.removeIndex (Array.FindIndex<Item>(d, fun x -> x=c))
+        let rec loop dataRest kRest centroids =
+            if kRest=1 then   
+                centroids
+            else    
+                let newC = 
+                    dataRest 
+                    |> Array.map  (fun p -> p, centroids |> List.map (fun c -> SSN.weightedEuclidean None p.dataL c.dataL) |> List.min )
+                    |> Array.maxBy snd 
+                    |> fst
+                loop (LeaveData dataRest newC) (kRest-1) (newC::centroids)
+        loop (LeaveData data centroid1) k [centroid1]
+
+    /// give a list of centroids as k the most distant elements of the dataset     
+    let kkz (data: Item [] []) k =
+        let centroid1 =
+            data 
+            |> Array.maxBy 
+                (fun x -> 
+                    x 
+                    |> Array.map (fun x -> x.dataL) 
+                    |> JaggedArray.transpose 
+                    |> Array.map (Array.average) 
+                    |> fun xx ->  sqrt ( xx |> Array.sumBy (fun i -> i*i))
+                )
+        let LeaveData d c =
+            d |> Array.removeIndex (Array.FindIndex<Item []>(d, fun x -> x=c))
+        let toMatrix =
+            Array.map (fun i -> i.dataL)
+            >> MatrixTopLevelOperators.matrix
+
+        let rec loop dataRest kRest centroids =
+            if kRest=1 then   
+                centroids
+            else    
+                let newC = 
+                    dataRest 
+                    |> Array.map (fun p -> 
+                        p, centroids |> List.map (fun c -> pairwiseCorrAverage (toMatrix p)  (toMatrix c)) |> List.min )
+                    |> Array.maxBy snd 
+                    |> fst
+                loop (LeaveData dataRest newC) (kRest-1) (newC::centroids)
+        loop (LeaveData data centroid1) k [centroid1]
+
+    let varPart_Single (data: Item []) k =
+        let sse (cluster: Item []) =
+            let centroid = cluster |> Array.map (fun x -> x.dataL) |> MatrixTopLevelOperators.matrix
+            let dist (a: Item) (b: matrix) =
+                pairwiseCorrAverage ([a.dataL] |> MatrixTopLevelOperators.matrix) b
+            cluster
+            |> Array.map 
+                (fun i -> (dist i centroid)*(dist i centroid))
+            |> Array.average
+        let split (cluster: Item []) =
+            let featureN = 
+                cluster 
+                |> Array.map (fun x -> x.dataL) 
+                |> MatrixTopLevelOperators.matrix 
+                |> Matrix.Generic.enumerateColumnWise Seq.var
+                |> Seq.mapi (fun id x -> (id,x))
+                |> Seq.maxBy snd
+                |> fst
+            let featureMean =
+                cluster
+                |> Array.map (fun x -> x.dataL.[featureN])
+                |> Array.average
+            cluster
+            |> Array.partition (fun x -> x.dataL.[featureN]>featureMean)
+        let pq = MaxIndexPriorityQueue<float>(k*2-1) // put a cluster there or SSE of a cluster or SSE*cluster????
+        let clusters: Item [] [] = Array.create (k*2-1) [||]
+        pq.Insert 0 (sse data)
+        clusters.[0] <- data
+        [|1 .. (k-1)|] 
+        |> Array.iter (fun ik -> 
+            let loosest = clusters.[pq.HeapItemIndex 1]
+            let newCl = split loosest
+            pq.Pop() |> ignore
+            pq.Insert (2*ik) (sse (fst newCl))
+            pq.Insert (2*ik-1) (sse (snd newCl))
+            clusters.[2*ik] <- (fst newCl)
+            clusters.[2*ik-1] <- (snd newCl)
+            )
+        [|1 .. k|]
+        |> Array.map (fun x -> clusters.[pq.HeapItemIndex x])
+
+
+    let varPart (data: Item [] []) k =
+        let sse (cluster: Item [] []) =
+            let centroid = cluster |> Array.map (fun x -> x |> Array.map (fun i -> i.dataL)) |> Array.concat |> MatrixTopLevelOperators.matrix
+            let dist (a: Item []) (b: matrix) =
+                pairwiseCorrAverage (a |> Array.map (fun i -> i.dataL) |> MatrixTopLevelOperators.matrix) b
+            cluster
+            |> Array.map 
+                (fun i -> (dist i centroid)*(dist i centroid))
+            |> Array.average
+        let split (cluster: Item [] []) =
+            let featureN = 
+                cluster 
+                |> Array.map (fun x -> x |> Array.map (fun i -> i.dataL) |> JaggedArray.transpose |> Array.map Array.average )
+                |> MatrixTopLevelOperators.matrix 
+                |> Matrix.Generic.enumerateColumnWise Seq.var
+                |> Seq.mapi (fun id x -> (id,x))
+                |> Seq.maxBy snd
+                |> fst
+            let featureMean =
+                cluster
+                |> Array.map (fun x -> x |> Array.map (fun i -> i.dataL.[featureN]) |> Array.average)
+                |> Array.average
+            cluster
+            |> Array.partition (fun x -> (x |> Array.map (fun i -> i.dataL.[featureN]) |> Array.average)>featureMean)
+        let pq = MaxIndexPriorityQueue<float>(k*2-1) // put a cluster there or SSE of a cluster or SSE*cluster????
+        let clusters: Item [] [] [] = Array.create (k*2-1) [||]
+        pq.Insert 0 (sse data)
+        clusters.[0] <- data
+        [|1 .. (k-1)|] 
+        |> Array.iter (fun ik -> 
+            let loosest = clusters.[pq.HeapItemIndex 1]
+            let newCl = split loosest
+            pq.Pop() |> ignore
+            pq.Insert (2*ik) (sse (fst newCl))
+            pq.Insert (2*ik-1) (sse (snd newCl))
+            clusters.[2*ik] <- (fst newCl)
+            clusters.[2*ik-1] <- (snd newCl)
+            )
+        [|1 .. k|]
+        |> Array.map (fun x -> clusters.[pq.HeapItemIndex x])
+
+    let kmeanGroups (k: int) weight (children: Map<string,Types.Item []> ) : Map<string,Types.Item []> =
+
+        let data = children |> Map.toArray |> Array.map (fun (s,ar) -> (s,ar |> Array.map (fun p -> p.dataL) |> MatrixTopLevelOperators.matrix))
+
+        let clusters = 
+            let c1 = ML.Unsupervised.IterativeClustering.compute distMatrix (intiCgroups) updateCentroid data k
+            let x1 = ML.Unsupervised.IterativeClustering.DispersionOfClusterResult c1
+            [|1 .. 20|]
+            |> Array.fold (fun (disp,best) x -> 
+                let c = ML.Unsupervised.IterativeClustering.compute distMatrix (intiCgroups) updateCentroid data k
+                let x = ML.Unsupervised.IterativeClustering.DispersionOfClusterResult c
+                if x<disp then
+                    (x,c)
+                else
+                    (disp,best) ) (x1,c1)
+            |> snd
+
+        data
+        |> Array.map (fun list -> (clusters.Classifier list |> fst),list )
+        |> Array.groupBy (fst)
+        |> Array.map (fun (cID,list) ->
+            let binName = list |> Array.map (fun (cID,(bin,p)) -> bin) |> Array.sort |> fun i -> String.Join("|",i) 
+            let items = list |> Array.map (fun (cID,(bin,p)) -> children |> Map.find bin) |> Array.concat
+            (binName,items))
+        |> Map.ofArray
+    
+    let centroidFactory (input: (string*matrix) array) (k: int) : ((string*matrix) []) =
+        let r = new System.Random() 
+        ML.Unsupervised.IterativeClustering.randomCentroids r input k
+
+    let kmeanGroupsRandom (k: int) weight (children: Map<string,Types.Item []> ) : Map<string,Types.Item []> =
+
+        let data = children |> Map.toArray |> Array.map (fun (s,ar) -> (s,ar |> Array.map (fun p -> p.dataL) |> MatrixTopLevelOperators.matrix))
+
+        let clusters = 
+            let c1 = ML.Unsupervised.IterativeClustering.compute distMatrix (centroidFactory) updateCentroid data k
+            let x1 = ML.Unsupervised.IterativeClustering.DispersionOfClusterResult c1
+            [|1 .. 20|]
+            |> Array.fold (fun (disp,best) x -> 
+                let c = ML.Unsupervised.IterativeClustering.compute distMatrix (centroidFactory) updateCentroid data k
+                let x = ML.Unsupervised.IterativeClustering.DispersionOfClusterResult c
+                if x<disp then
+                    (x,c)
+                else
+                    (disp,best) ) (x1,c1)
+            |> snd
+
+        data
+        |> Array.map (fun list -> (clusters.Classifier list |> fst),list )
+        |> Array.groupBy (fst)
+        |> Array.map (fun (cID,list) ->
+            let binName = list |> Array.map (fun (cID,(bin,p)) -> bin) |> Array.sort |> fun i -> String.Join("|",i) 
+            let items = list |> Array.map (fun (cID,(bin,p)) -> children |> Map.find bin) |> Array.concat
+            (binName,items))
+        |> Map.ofArray
+
+    /// Kmean for groups with KKZ centroid init
+    let kmeanGroupsKKZ (k: int) (children: Map<string,Types.Item []> ) =
+
+        let data = children |> Map.toArray |> Array.map (fun (s,ar) -> (s,ar |> Array.map (fun p -> p.dataL) |> MatrixTopLevelOperators.matrix))
+
+        let clusters = ML.Unsupervised.IterativeClustering.compute distMatrix (initCgroupsKKZ) updateCentroid data k
+
+        data
+        |> Array.map (fun list -> (clusters.Classifier list |> fst),list )
+        |> Array.groupBy (fst)
+        |> Array.map (fun (_,list) -> 
+            list 
+            |> Array.map (fun (_,(bin,_)) -> (bin, children |> Map.find bin))
+            )
+
+module Walk =
+
+    let reflectStateID (matrixA) =
+        matrixA 
+        |> List.distinct
+        |> List.map (fun i -> 
+            i 
+            |> List.indexed 
+            |> List.filter (fun (_,x) -> x=1 ) 
+            |> List.map (fun (i,_) -> i)
+            |> List.toArray
+            )
+        |> List.toArray
+    
+    let gainFnn (data: Item [] []) (singleGG: float []) matrixSingles fn (x: int [] []) = 
+            x
+            |> Array.sumBy (fun ids ->
+                    if ids.Length=1 then
+                        singleGG.[ids.[0]]
+                    else    
+                        let itemsChild = ids |> Array.map (fun i -> data.[i]) |> Array.concat |> SSN.groupIDFn
+                        let itemsParent = data |> Array.concat |> SSN.groupIDFn 
+                        SSN.getStepGainFn fn itemsChild itemsParent itemsParent.Length matrixSingles
+            )
+
+    let matrixG_from_matrixA (data: Item [] []) (singleGG: float []) matrixSingles fn matrixA =
+        let clusterMA = matrixA |> List.distinct
+        let pairArray = Array.allPairs [|0 .. (data.Length-1)|] [|0 .. (clusterMA.Length)|] 
+        let m = JaggedArray.zeroCreate data.Length (clusterMA.Length+1)
+        pairArray
+        |> Array.iter (fun (i,J) -> // that can be substituted by for i=0 to data.Length do for J=0 to (clusterMA.Length+1) do
+            
+            let matrixAA = matrixA |> List.map (List.toArray) |> List.toArray
+
+            let A = (matrixAA.[i] |> Array.indexed |> Array.filter (fun (i,x) -> x=1) |> Array.map fst |> Array.toList) // a was in A
+            
+            let B = 
+                if J<clusterMA.Length then
+                    (clusterMA.[J] |> List.indexed |> List.filter (fun (i,x) -> x=1) |> List.map fst) // b was in B
+                else 
+                    if A.Length=1 then
+                        []
+                    else
+                        [i]
+
+            if (A=B) || (B.IsEmpty) then 
+                m.[i].[J] <- (0., [])
+            
+            else
+                for ii in A do   // move 'a' out of 'A', but leave it stay with itself
+                        matrixAA.[i].[ii] <- 0
+                        matrixAA.[ii].[i] <- 0
+                matrixAA.[i].[i] <- 1
+
+                for jj in B do   // move a in B
+                        matrixAA.[i].[jj] <- 1
+                        matrixAA.[jj].[i] <- 1
+                let newMA = matrixAA |> Array.map (Array.toList) |> Array.toList
+                        
+                let stateIDs = reflectStateID newMA
+                let gain =
+                    stateIDs |> gainFnn data singleGG matrixSingles fn
+
+                m.[i].[J] <- (gain, newMA)
+            )
+        m
+
+
+    type QDictionary_GValue =
+        {
+        NextStepGain: float
+        NextStepState: int list list
+        mutable MaxGain: float
+        } 
+
+    let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,Item>>) gainFn (data: Map<string, Item []>) = 
+    
+        let mutable qDictionary: Map<(int list list),((float*(int list list)) [] [])> = Map.empty
+
+        let dataGroupsA = data |> Map.toArray
+
+        let singleGG =
+            dataGroupsA
+            |> Array.map (fun (bin,_) -> 
+                                let node = singles |> Map.find bin 
+                                node.GroupGain)
+
+        /// input data: groups of items
+        let dataGroups = dataGroupsA |> Array.map snd
+
+        let rename (list: (string*(Types.Item [])) []) =
+                if list.Length>1 then
+                    let newKey =
+                        list 
+                        |> Array.fold (fun state (k,v) -> (sprintf "%s|%s" state k)) (sprintf "mix")  
+                    let newListValue = 
+                        list 
+                        |> Array.map (fun (k,v) -> v) 
+                        |> Array.concat      
+                        |> Array.map (fun protein -> {protein with BinL= Array.append protein.BinL.[0 .. depth] [|newKey|]})   
+                    (newKey, newListValue)
+                else
+                    list.[0]    
+
+        let superFunctionTestG (data: Item [] []) (singleGG: float []) fn matrixSingles initConf  =
+
+            let initialConfig = 
+                initConf
+                |> Array.map 
+                    (Array.map (fun (label,_) -> 
+                        dataGroupsA 
+                        |> Array.findIndex (fun (l,_) -> l=label) )
+                    )
+
+            //let fileLogInitState = sprintf "Initial state: %A"  (initConf |> Array.map (Array.map fst))
+            //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogInitState])
+
+            /// adjustency matrix (initialize with initial configuration) 
+            let matrixA =
+                let m = JaggedArray.zeroCreate data.Length data.Length
+                for i=0 to (data.Length-1) do
+                    let cluster = initialConfig |> Array.find (fun x -> x |> Array.contains i)
+                    for j=0 to (data.Length-1) do
+                        if (cluster |> Array.contains j) then   
+                            m.[i].[j] <- 1
+                        else
+                            m.[i].[j] <- 0
+                m
+                |> Array.map (Array.toList)
+                |> Array.toList
+
+            //let mutable qDictionary': Map<(int list list),(QDictionary_GValue [] [])> = Map.empty
+            //((qDictionary'.Item matrixA).[0].[0]).MaxGain <- 0. 
+
+            let initStateIDs = reflectStateID matrixA
+            let initialState = (gainFnn data singleGG matrixSingles fn initStateIDs, initStateIDs)
+
+            //let fileLogInit = sprintf "0\t0\tnan\tnan\t0.\t%f" (fst initialState)
+            //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogInit])
+
+            //let fileLog = sprintf "0\t0\t0.\t%f" (fst initialState)
+            //File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [fileLog])
+
+            let clusterMA = matrixA |> List.distinct
+            let pairArray' = Array.allPairs [|0 .. (data.Length-1)|] [|0 .. (clusterMA.Length)|] 
+
+            let matrixG_origin = matrixG_from_matrixA data singleGG matrixSingles fn matrixA
+        
+            qDictionary <- (qDictionary.Add (matrixA, matrixG_origin))
+
+            let pq_origin =
+                let n = pairArray'.Length
+                let p = MaxIndexPriorityQueue<float>(n)
+                for id=0 to n-1 do 
+                    let (i,ii) = pairArray'.[id]
+                    if (fst matrixG_origin.[i].[ii])>0. then p.Insert id (fst matrixG_origin.[i].[ii]) // load all calculated gains
+                p
+
+            let rec loop iStep (mA: int list list) (pairArray: (int*int) []) (mG: (float*(int list list)) [] []) (pq: MaxIndexPriorityQueue<float>) (moved: int []) =
+        
+                let gainCurrent = gainFnn data singleGG matrixSingles fn (reflectStateID mA)
+        
+                let mutable countDirections = 0
+            
+                seq [ while 
+                    (pq.Length>0) 
+                    && (pq.Top()>0.) 
+                    && (countDirections<1) && (iStep<5) do // (pq.Top() > gainCurrent) && (countDirections<3) && (iStep<6)
+                
+                        countDirections <- countDirections + 1
+                    
+                        // order represents the moving: a - moved element, b - target cluster
+                                     
+
+                        //let fileLogStep = sprintf "%i\t%i\t%i\t%i\t%f\t%f" iStep countDirections a b gainCurrent (pq.Top())
+                        //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogStep])
+
+                        let (a,b) = 
+                            while (pq.Length>0) 
+                                && (qDictionary |> Map.containsKey (snd mG.[fst pairArray.[pq.TopIndex()]].[snd pairArray.[pq.TopIndex()]])) do
+                                    pq.Pop() |> ignore
+
+                            if pq.Length=0 then 
+                                (-1,-1)
+                            else
+                                pairArray.[pq.TopIndex()]
+                        
+                        if (a,b)=(-1,-1) then // if the pq is empty and no new states are found
+                            yield! []
+                        else
+
+                            let mA_new = snd mG.[a].[b]
+
+                            //let fileStep = sprintf "%i\t%i\t%f\t%f" iStep countDirections gainCurrent (pq.Top())
+                            //File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [fileStep])
+
+                            pq.Pop() |> ignore // pq will be used for other directiones in while loop
+
+                            // find all values in mG with the same state and exclude possibility to go there again 
+                            // by adding all a's in moved (don't change mG!) and removing duplicate states from pq
+                            let all_a = 
+                                mG 
+                                |> Array.indexed 
+                                |> Array.filter (fun (_, vL) -> (vL |> Array.contains mG.[a].[b]) )
+                                |> Array.map (fun (i,vl) ->
+                                            let jjj = vl |> Array.findIndex (fun v -> v = mG.[a].[b])
+                                            pq.TryRemove ((i*mG.[0].Length)+jjj)
+                                            i )
+
+                        //if (qDictionary |> Map.containsKey mA_new) then
+                        
+                        //    //let fileLogState = sprintf "%A was already visited, no step further" (reflectStateID mA_new)
+                        //    //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogState]) 
+                        
+                        //    yield! [] // how to get rid of the unnecessary empty lists? 
+                        //else
+                    
+                            //let fileLogState = sprintf "%A" (reflectStateID mA_new)
+                            //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogState]) 
+
+                            let clusterMA_new = mA_new |> List.distinct
+                            let pairArrayNew = Array.allPairs [|0 .. (data.Length-1)|] [|0 .. (clusterMA_new.Length)|] 
+
+                            let matrixG = matrixG_from_matrixA data singleGG matrixSingles fn mA_new
+                        
+                            qDictionary <- (qDictionary.Add (mA_new, matrixG))
+                        
+                            let pq_new = 
+                                let n = pairArrayNew.Length
+                                let p = MaxIndexPriorityQueue<float>(n)
+                                for j=0 to n-1 do 
+                                    let (i,ii) = pairArrayNew.[j]
+                                    let gain = fst matrixG.[i].[ii]
+                                    if gain>0. then
+                                        p.Insert j (gain) // load all gains except of redundant
+                                p
+                        
+                            let new_moved = Array.append all_a moved |> Array.distinct
+
+                            new_moved
+                            |> Array.iter (fun i ->
+                                let indices = [|(i * matrixG.[0].Length) .. (i * (matrixG.[0].Length) + matrixG.[0].Length - 1)|]
+                                pq_new.TryRemoveGroup indices
+                            )
+
+                            let configuration = reflectStateID mA_new
+                            let gain = gainFnn data singleGG matrixSingles fn (configuration)
+                            let stats = (gain, configuration) 
+                            
+                            yield (stats)
+                            yield! loop (iStep+1) mA_new pairArrayNew matrixG pq_new new_moved
+                ]
+    
+            Seq.appendSingleton (loop 1 matrixA pairArray' matrixG_origin pq_origin [||]) initialState 
+
+        (seq [singleGG |> Array.sum, Array.init data.Count (fun i -> [|i|])]) :: 
+            ([2 .. (data.Count-1)] 
+            |> List.map (fun i -> 
+
+                //let fileLogKMEAN = sprintf "Kmean with k=%i"  i
+                //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogKMEAN])
+
+                data
+                |> kmeanKKZ i
+                |> superFunctionTestG dataGroups singleGG gainFn matrixSingletons)
+            )
+        |> Seq.ofList
+        |> Seq.concat           
+        |> Seq.maxBy (fst)
+        |> snd
+        |> Array.map (fun groupIDs ->     
+            groupIDs 
+            |> Array.map (fun groupID -> 
+                dataGroupsA.[groupID])
+            |> rename )
+        |> Map.ofArray
+
 /////////////////////////       
 
 /// call the main function, 
 /// data is an experimental dataset for one functional group,
 /// setN is usually the size of the whole dataset
+let readMM_raw setN data  = SSN.createTree (SSN.getStepGainNodeSetnR setN)  (None) Types.Mode.MM_raw data
 let readMM setN data  = SSN.createTree (SSN.getStepGainNodeSetnR setN)  (None) Types.Mode.MM data
 let applySSN setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN)  (None) (Types.Mode.SSN_pre ((KMeanSwapFunctions.kmeanSwapShuffle setN 1), SSN.clusterHier)) data
 let applySSNcombi setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN)  (None) Types.Mode.SSN_combi data
 let applySSNold setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN) (None) (SSN_pre ((KMeanSwapFunctions.kmeanSwapShuffleOld 1), SSN.clusterHier)) data
+let applySST_walk setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (Clustering.kmeanGroupsKKZ, (Walk.walkingFn))) data
 
 

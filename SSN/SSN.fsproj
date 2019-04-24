@@ -64,6 +64,7 @@
     <Compile Include="TestData.fs" />
     <Compile Include="SOM.fs" />
     <Compile Include="Auxilliary.fs" />
+    <Compile Include="ElbowCriteria.fs" />
     <Compile Include="Plots.fs" />
     <Compile Include="Program.fs" />
     <None Include="Test.fsx" />
@@ -81,6 +82,7 @@
     <None Include="GroupGainPathWalking.fsx" />
     <None Include="GroupGainPathWalking_simpleTreeFn.fsx" />
     <None Include="GroupGainPathWalking_TerminalCondition.fsx" />
+    <None Include="ComparativeClustering.fsx" />
     <None Include="App.config" />
     <Content Include="packages.config" />
   </ItemGroup>

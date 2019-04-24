@@ -221,7 +221,7 @@ let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,I
             seq [ while 
                 (pq.Length>0) 
                 && (pq.Top()>0.) 
-                && (countDirections<2) && (iStep<5) do // (pq.Top() > gainCurrent) && (countDirections<3) && (iStep<6)
+                && (countDirections<1) && (iStep<5) do // (pq.Top() > gainCurrent) && (countDirections<3) && (iStep<6)
                 
                     countDirections <- countDirections + 1
                     
@@ -309,8 +309,7 @@ let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,I
                         yield! loop (iStep+1) mA_new pairArrayNew matrixG pq_new new_moved
             ]
     
-        Seq.appendSingleton (loop 1 matrixA pairArray' matrixG_origin pq_origin [||]) initialState // is it really neccessary to hand over pairArray?!
-        
+        Seq.appendSingleton (loop 1 matrixA pairArray' matrixG_origin pq_origin [||]) initialState 
 
     (seq [singleGG |> Array.sum, Array.init data.Count (fun i -> [|i|])]) :: 
         ([2 .. (data.Count-1)] 
@@ -474,6 +473,8 @@ let createTreeWalking gainFn (weight: seq<float> option) (mode: Mode) (rootGroup
 
 //!!! Rethink idea of directions!!! not element -> element but element -> cluster
 
+
+
 let applySSNcombi data setN = createTreeWalking (SSN.getStepGainNodeSetnR setN) None SSN_combi data
 let applySSN data setN = createTreeWalking (SSN.getStepGainNodeSetnR setN) None (SSN_walk (FunctionsExp.PreClusterFunctions.kmeanGroupsKKZ, (walkingFn))) data
 let readMM data setN = createTreeWalking (SSN.getStepGainNodeSetnR setN) None MM data
@@ -485,7 +486,7 @@ stepCount
 
 let dataPOI = 
     ChlamyProteome.dataAll
-    |> Array.filter (fun x -> x.BinL.[0]="29")
+    |> Array.filter (fun x -> x.BinL.[0]="1")
     |> Array.mapi (fun id x -> {x with ID=id})
 
 dataPOI |> Array.filter (fun x -> x.ProteinL |> Array.exists (fun name -> name |> String.contains "Cre05.g237450"))
@@ -541,7 +542,6 @@ sendToGephiFromTreeParam treeMM
 sendToGephiFromTreeParam walk |> ignore
 sendToGephiFromTreeParam combi
 
-
 let pathsSorted =
     ArabiProteome.itemsWithMapManFound
     |> Array.groupBy (fun x -> x.BinL.[0])
@@ -550,28 +550,32 @@ let pathsSorted =
     |> Array.map (fst)
     
 let pathsSortedChildren =
-    ArabiTranscriptome.itemsWithMapManIdentified //ArabiProteome.itemsWithMapManFound //ArabiProteome.itemsWithMapManFound
+    ArabiProteome.itemsWithMapManFound  //ChlamyProteome.dataAll //ArabiTranscriptome.itemsWithMapManIdentified //ArabiProteome.itemsWithMapManFound 
     |> Array.groupBy (fun x -> x.BinL.[0])
     |> Array.filter (fun (bin,l) -> l.Length > 2)
     |> Array.map (fun (bin,l) -> 
         let data = l |> Array.mapi (fun id x -> {x with ID=id})
         let tree = readMM data data.Length
         let childrenN = Tree.filterChildrenList tree
-        (bin, childrenN |> List.max) )
-    |> Array.filter (fun (bin,cn) -> cn<=10)
-    |> Array.map fst
+        (bin, childrenN |> List.max, tree.GroupGain) )
+    |> Array.sortBy (fun (_,cn,_) -> cn)
+    |> Array.map (fun (x,_,_) -> x)
 
-let pathFile = @"..\results\"
-let neader = "Path\tcombi_GG\tcombi_Time\tcombi_DxC\twalk_GG\twalk_Time\twalk_DxC\ttreeComparison\tTimeRatio"
+let pathFile = sprintf @"%sresults\" General.pathToData
+let neader = "Path\tnRoot\tchildrenMax\tcombi_GG\tcombi_Time\tcombi_DxC\twalk_GG\twalk_Time\twalk_DxC\ttreeComparison\tTimeRatio"
+
+File.AppendAllLines((sprintf "%s%s.txt" pathFile "newAraProtData_NoRepetitions_d1s5"), [neader])
 
 let lines = 
-    pathsSortedChildren
+    [|"22"; "6"; "24"; "5"; "14"; "17"; "2"; "25"; "23"; "16"; "8"; "12"; "7"; "15"; "18";|]
     |> List.ofArray
     |> List.map (fun path -> 
         let data = 
             ArabiProteome.itemsWithMapManFound // ChlamyProteome.dataAll //ArabiProteome.itemsWithMapManFound
             |> Array.filter (fun x -> x.BinL.[0]=path)
             |> Array.mapi (fun id x -> {x with ID=id})
+        let tree = readMM data data.Length
+        let childrenN = Tree.filterChildrenList tree |> List.max
         let stopwatch = new System.Diagnostics.Stopwatch()
         stopwatch.Start()
         let walk = applySSN (data) data.Length
@@ -603,31 +607,38 @@ let lines =
             |> Tree.filterLeaves
             |> Analysis.pointDxC normMatrix
             |> fun (x,y) -> weightedEuclidean None [x;y] [0.;0.]
+        let treeComp = (Tree.treeComparison combi walk)
 
-        printfn "path: %s, %i" path data.Length 
-        printfn "combi GG; combi Time; walk GG; walk Time; walk DxC; comparison; TimeRatio"
-        printfn "%s %f %f %f %f %f %f %i %f" 
-            path combi.GroupGain timeCombi dxcC walk.GroupGain timeWalk dxcW (Tree.treeComparison combi walk) (timeCombi/timeWalk)
-        sprintf "%s\t%f\t%f\t%f\t%f\t%f\t%f\t%i\t%f" 
-            path combi.GroupGain timeCombi dxcC walk.GroupGain timeWalk dxcW (Tree.treeComparison combi walk) (timeCombi/timeWalk)
+        printfn "path; nRoot; childrenMax; combi GG; combi Time; walk GG; walk Time; walk DxC; comparison; TimeRatio"
+        printfn "%s %i %i %f %f %f %f %f %f %i %f" 
+            path data.Length childrenN combi.GroupGain timeCombi dxcC walk.GroupGain timeWalk dxcW treeComp (timeCombi/timeWalk)
 
+        let line = 
+            sprintf "%s\t%i\t%i\t%f\t%f\t%f\t%f\t%f\t%f\t%i\t%f" 
+                path data.Length childrenN combi.GroupGain timeCombi dxcC walk.GroupGain timeWalk dxcW treeComp (timeCombi/timeWalk)
+        
+        File.AppendAllLines((sprintf "%s%s.txt" pathFile "newAraProtData_NoRepetitions_d1s5"), [line])
+
+        line
         )
 
 
 let linesWAcombi = 
-    [|"29"|]
+    [|"10"; "13"; "9"; "11"; "4"; "34"; "3"; "19"; "28"; "21"; "26"; "33"; "1"; "27"; "20"; "30"; "29"; "31";|]
     |> List.ofArray
     |> List.map (fun path -> 
         let data = 
-            ChlamyProteome.dataAll //ArabiProteome.itemsWithMapManFound
+            ArabiProteome.itemsWithMapManFound // ChlamyProteome.dataAll //ArabiProteome.itemsWithMapManFound
             |> Array.filter (fun x -> x.BinL.[0]=path)
             |> Array.mapi (fun id x -> {x with ID=id})
+        let tree = readMM data data.Length
+        let childrenN = Tree.filterChildrenList tree |> List.max
         let stopwatch = new System.Diagnostics.Stopwatch()
         stopwatch.Start()
         let walk = applySSN (data) data.Length
-        sendToGephiFromTreeParam walk |> ignore
         let timeWalk = (stopwatch.Elapsed.TotalSeconds)
         stopwatch.Stop()
+
         let matrixOfN = 
             data
             |> distMatrixWeightedOf distanceMatrixWeighted None
@@ -647,13 +658,20 @@ let linesWAcombi =
             |> Analysis.pointDxC normMatrix
             |> fun (x,y) -> weightedEuclidean None [x;y] [0.;0.]
 
-        printfn "path: %s, %i" path data.Length 
-        printfn "combi GG; combi Time; walk GG; walk Time; walk DxC; comparison"
-        printfn "%s %f %f %f %f %f %f %i" path 0. 0. 0. walk.GroupGain timeWalk dxcW 0
-        sprintf "%s\t%f\t%f\t%f\t%f\t%f\t%f\t%i" path 0. 0. 0. walk.GroupGain timeWalk dxcW 0
+        printfn "path; nRoot; childrenMax; combi GG; combi Time; walk GG; walk Time; walk DxC; comparison; TimeRatio"
+        printfn "%s %i %i %f %f %f %f %f %f %i %f" 
+            path data.Length childrenN 0. 0. 0. walk.GroupGain timeWalk dxcW 0 0.
+
+        let line = 
+            sprintf "%s\t%i\t%i\t%f\t%f\t%f\t%f\t%f\t%f\t%i\t%f" 
+                path data.Length childrenN 0. 0. 0. walk.GroupGain timeWalk dxcW 0 0.
+        
+        File.AppendAllLines((sprintf "%s%s.txt" pathFile "newAraProtData_NoRepetitions_d2s5"), [line])
+
+        line
         )
 
-File.AppendAllLines((sprintf "%s%s.txt" pathFile "oldChlamyProtData_NoRepetitions_d2s5"), neader :: linesWAcombi)
+File.AppendAllLines((sprintf "%s%s.txt" pathFile "newAraProtData_NoRepetitions_d1s5"), neader :: lines)
 
 
 /////////////////////////// ####### plot path walking tree
