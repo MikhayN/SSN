@@ -83,6 +83,7 @@
     <None Include="GroupGainPathWalking_simpleTreeFn.fsx" />
     <None Include="GroupGainPathWalking_TerminalCondition.fsx" />
     <None Include="ComparativeClustering.fsx" />
+    <None Include="GetDelta.fsx" />
     <None Include="App.config" />
     <Content Include="packages.config" />
   </ItemGroup>

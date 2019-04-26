@@ -1300,12 +1300,12 @@ module Walk =
         m
 
 
-    type QDictionary_GValue =
-        {
-        NextStepGain: float
-        NextStepState: int list list
-        mutable MaxGain: float
-        } 
+    //type QDictionary_GValue =
+    //    {
+    //    NextStepGain: float
+    //    NextStepState: int list list
+    //    mutable MaxGain: float
+    //    } 
 
     let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,Item>>) gainFn (data: Map<string, Item []>) = 
     
@@ -1522,6 +1522,7 @@ let applySSNold setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN) (None
 let applySST_walk setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (Clustering.kmeanGroupsKKZ, (Walk.walkingFn))) data
 
 let asyncApplySSN setN data = async {return (applySST_walk setN data)}
+
 
 
 

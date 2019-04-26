@@ -180,3 +180,29 @@ dissimilarity clustersSST (dataPOI.Length) // 0.07
 similarity rootClusters classes |> Chart.Show //
 similarity leavesClusters classes |> Chart.Show //
 similarity clustersSST classes |> Chart.Show //
+
+
+let dataSet =
+    ChlamyProteome.dataAll
+    |> Array.groupBy (fun x -> x.BinL.[0])
+    |> Array.map (snd >> Array.mapi (fun id x -> {x with ID=id}))
+    |> Array.filter (fun il -> il.Length>6 && il.[0].OriginalBin.[0]<>"35")
+
+dataSet |> Array.iter (fun i -> printfn "%s" i.[0].OriginalBin.[0])
+
+let writeTreeInFile len data = async {
+    let tree = applySST_walk len data
+    let lines =
+        tree 
+        |> Tree.filterLeaves 
+        |> Array.concat 
+        |> Array.map (fun i -> sprintf "%i\t%s\t%s" i.ID (String.Join(";", i.ProteinL)) (String.Join(".", i.BinL)) )
+    let x = (File.AppendAllLines((sprintf "%sresults\\SST_%s.txt" General.pathToData data.[0].BinL.[0]), lines))
+    return tree
+    }
+
+let trees =
+    dataSet
+    |> Array.map (fun x -> writeTreeInFile x.Length x)
+    |> Async.Parallel
+    |> Async.RunSynchronously
