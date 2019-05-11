@@ -1,0 +1,8 @@
+new walking started
+StepN	DirectionN	GainBefore	GainNow
+new walking started
+StepN	DirectionN	GainBefore	GainNow
+new walking started
+StepN	DirectionN	GainBefore	GainNow
+new walking started
+StepN	DirectionN	GainBefore	GainNow

@@ -1,0 +1,5 @@
+new walking started
+StepN	DirectionN	GainBefore	GainNow
+0	0	0.	4.347765
+1	1	4.347765	6.206800
+2	1	6.206800	2.591656

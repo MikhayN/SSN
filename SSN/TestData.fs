@@ -362,11 +362,6 @@ module ChlamyProteome =
             proteinsToListFrom i p 
             |> General.transformKineticData General.zScoreTransform )
 
-    let data =
-        dataAll
-        |> Array.filter (fun i -> i.BinL.Length>0 && i.BinL.[0] = "29")
-        |> Array.mapi (fun id it -> {it with ID=id})
-
 module ChlamyTranscriptome =
 
     type BinConverter() = 

@@ -1,0 +1,12 @@
+new walking started
+StepN	DirectionN	GainBefore	GainNow
+0	0	0.	8.854985
+1	1	8.854985	7.955909
+2	1	7.955909	2.697690
+new walking started
+StepN	DirectionN	GainBefore	GainNow
+new walking started
+StepN	DirectionN	GainBefore	GainNow
+0	0	0.	2.628030
+1	1	2.628030	16.928385
+2	1	16.928385	11.720411

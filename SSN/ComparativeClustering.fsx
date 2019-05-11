@@ -136,9 +136,13 @@ let pathsSortedChildren =
 
 let dataPOI = 
     ChlamyProteome.dataAll
-    |> Array.filter (fun x -> x.BinL.[0]="29")
+    |> Array.filter (fun x -> x.BinL.[0]="1")
+    |> Array.sortBy (fun x -> x.ProteinL)
     |> Array.mapi (fun id x -> {x with ID=id})
 
+dataPOI
+
+dataPOI.Length
 
 let classes = trueClasses dataPOI
 
@@ -148,7 +152,7 @@ let rootClusters =
     dataPOI
     |> groupClust
 
-rootClusters.Length 
+rootClusters |> Array.map Array.length 
 
 let leavesClusters =
     classes
@@ -178,7 +182,12 @@ dissimilarity clustersSST (dataPOI.Length) // 0.07
 
 ////// find a way to rearrange the cells in heatmap plot
 similarity rootClusters classes |> Chart.Show //
+similarity rootClusters rootClusters |> Chart.Show //
+
 similarity leavesClusters classes |> Chart.Show //
+similarity leavesClusters leavesClusters |> Chart.Show //
+
+
 similarity clustersSST classes |> Chart.Show //
 
 

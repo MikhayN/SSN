@@ -84,6 +84,7 @@
     <None Include="GroupGainPathWalking_TerminalCondition.fsx" />
     <None Include="ComparativeClustering.fsx" />
     <None Include="GetDelta.fsx" />
+    <None Include="RedoxData.fsx" />
     <None Include="App.config" />
     <Content Include="packages.config" />
   </ItemGroup>

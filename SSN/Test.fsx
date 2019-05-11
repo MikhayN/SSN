@@ -1,45 +1,49 @@
-﻿//#r @".\bin\Debug\netstandard.dll"
+﻿#r @".\bin\Debug\netstandard.dll"
 
-//#r @".\bin\Debug\BioFSharp.dll"
-//#r @".\bin\Debug\BioFSharp.IO.dll"
-//#r @".\bin\Debug\FSharpAux.dll"
-//#r @".\bin\Debug\FSharpAux.IO.dll"
-//#r @".\bin\Debug\Newtonsoft.Json.dll"
-//#r @".\bin\Debug\FSharp.Stats.dll"
-//#r @".\bin\Debug\FSharp.Plotly.dll"
-//#r @".\bin\Debug\FSharpGephiStreamer.dll"
+#r @".\bin\Debug\BioFSharp.dll"
+#r @".\bin\Debug\BioFSharp.IO.dll"
+#r @".\bin\Debug\FSharpAux.dll"
+#r @".\bin\Debug\FSharpAux.IO.dll"
+#r @".\bin\Debug\Newtonsoft.Json.dll"
+#r @".\bin\Debug\FSharp.Stats.dll"
+#r @".\bin\Debug\FSharp.Plotly.dll"
+#r @".\bin\Debug\FSharpGephiStreamer.dll"
 
-//#r @"..\lib\MathNet.Numerics.dll"
+#r @"..\lib\MathNet.Numerics.dll"
 
-//#load "Types.fs"
-//#load "Functions.fs"
-//#load "FunctionsExp.fs"
-//#load "GePhi.fs"
-//#load "TestData.fs"
-//#load "SOM.fs"
-//#load "Auxilliary.fs"
-//#load "Plots.fs"
+#load "Types.fs"
+#load "PQ.fs"
+#load "Functions.fs"
+#load "FunctionsExp.fs"
+#load "GePhi.fs"
+#load "TestData.fs"
+#load "SOM.fs"
+#load "Auxilliary.fs"
+#load "Plots.fs"
 
-//#time
+#time
 
-//open System
-//open System.IO
-//open FSharp.Stats
-//open FSharp.Plotly
+open System
+open System.IO
+open FSharp.Stats
+open FSharp.Plotly
+open BioFSharp.IO
+open FSharpAux.IO
+open FSharpAux
 
-//open Functions
-//open FunctionsExp
-//open TestData
-//open GePhi
-//open Types
-//open Auxilliary
-//open FunctionsExp
-//open FunctionsExp
-//open FunctionsExp
-//open FSharp.Stats.ML
+open Functions
+open FunctionsExp
+open TestData
+open GePhi
+open Types
+open Auxilliary
+open FunctionsExp
+open FunctionsExp
+open FunctionsExp
+open FSharp.Stats.ML
 
-////open FSharpAux.IO
-////open FSharpAux
+//open FSharpAux.IO
+//open FSharpAux
 
 ////let csvPathTA = @"c:\Users\mikha\Work-CSB\Data\Proteome_201902\SFBcore_Heat_Protein.txt" 
     
@@ -302,3 +306,134 @@
 //|> Chart.Combine
 //|> Chart.withSize (800.,600.)
 //|> Chart.Show
+
+
+
+//Read file of RedoxDB.A
+
+let linesA = FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\DBs\RedoxDB\redoxdb.A.txt"
+let itemsA =
+    linesA 
+    |> Seq.fold (fun (item,list) i -> 
+        if i="" then ([],item::list)
+        else (i::item,list)) ([],[])
+    |> snd
+
+let chlamyItemsA =
+    itemsA
+    |> List.filter (fun item -> item |> List.exists (fun i -> i |> String.contains "ORGANISM: Chlamydomonas"))
+chlamyItemsA.Length
+
+let ArabItemsA =
+    itemsA
+    |> List.filter (fun item -> item |> List.exists (fun i -> i |> String.contains "ORGANISM: Arabidopsis"))
+ArabItemsA.Length
+
+let ArabProtNameA =
+    ArabItemsA 
+    |> List.map (List.find (fun x -> x |> String.contains "GENENAME:") >> String.split ' ' >> Array.last >> String.map (Char.ToUpper))
+ArabProtNameA.Length
+
+let ArabProtIDA =
+    ArabItemsA 
+    |> List.map (List.find (fun x -> x |> String.contains "ID:") >> String.split ' ' >> Array.item 1 )
+ArabProtIDA.Length
+
+//Read file of RedoxDB.B
+
+let linesB = FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\DBs\RedoxDB\redoxdb.B.txt"
+let itemsB =
+    linesB 
+    |> Seq.fold (fun (item,list) i -> 
+        if i="" then ([],item::list)
+        else (i::item,list)) ([],[])
+    |> snd
+
+let chlamyItemsB =
+    itemsB
+    |> List.filter (fun item -> item |> List.exists (fun i -> i |> String.contains "ORGANISM: Chlamydomonas"))
+chlamyItemsB.Length
+
+let ArabItemsB =
+    itemsB
+    |> List.filter (fun item -> item |> List.exists (fun i -> i |> String.contains "ORGANISM: Arabidopsis"))
+ArabItemsB.Length
+
+let ArabProtNameB =
+    ArabItemsB 
+    |> List.map (List.find (fun x -> x |> String.contains "GENENAME:") >> String.split ' ' >> Array.last >> String.map (Char.ToUpper))
+    |> List.filter (fun x -> x<>"")
+ArabProtNameB.Length
+
+let ArabProtIDB =
+    ArabItemsB 
+    |> List.map (List.find (fun x -> x |> String.contains "ID:") >> String.split ' ' >> Array.item 1 )
+ArabProtIDB.Length
+
+//Read file of RSC758
+
+let linesRSC = FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\DBs\MainArticle_FeaturePredictor\RSC758.txt"
+let itemsRSC =
+    linesRSC 
+    |> Seq.toList
+    |> List.tail
+    |> List.map (fun x -> (x |> String.split '\t').[0])
+    
+let chlamyItemsRSC =
+    itemsRSC
+    |> List.filter (fun item -> item |> String.contains "_CH")
+chlamyItemsRSC.Length
+
+let ArabItemsRSC =
+    itemsRSC
+    |> List.filter (fun item -> item |> String.contains "_ARATH")
+ArabItemsRSC.Length
+
+let comparedListRSC =
+    ArabItemsRSC
+    |> List.map (fun i -> 
+        if (List.contains i ArabProtIDA) || (List.contains i ArabProtIDB) then
+            None // somewhere in RedoxDB, not interesting
+        else
+            Some i // not in RedoxDB, can take a look
+        )
+comparedListRSC |> List.filter (fun i -> i.IsSome) |> List.length
+
+//Read file of CollectedTable
+
+let linesAlix = FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\DBs\Collected by Alix\190414_All_ref_table_ATG_POT.txt"
+let itemsAlix =
+    linesAlix 
+    |> Seq.toList
+    |> List.map (fun x -> (x |> String.split '\t').[1])
+    |> List.tail
+
+let comparedListA =
+    ArabProtNameA
+    |> List.map (fun i -> 
+        if (List.contains i itemsAlix) then
+            None // in both lists, not interesting
+        else
+            Some i // in RedoxA but not in Alix
+        )
+comparedListA |> List.filter (fun i -> i.IsSome) |> List.length
+
+let comparedListB =
+    ArabProtNameB
+    |> List.map (fun i -> 
+        if (List.contains i itemsAlix) then
+            None // in both lists, not interesting
+        else
+            Some i // in RedoxA but not in Alix
+        )
+comparedListB |> List.filter (fun i -> i.IsSome) |> List.length
+
+let comparedListAlix =
+    itemsAlix
+    |> List.map (fun i -> 
+        if (List.contains i ArabProtNameA) || (List.contains i ArabProtNameB) then
+            None // somewhere in RedoxDB, not interesting
+        else
+            Some i // not in RedoxDB, can take a look
+        )
+comparedListAlix |> List.filter (fun i -> i.IsSome) |> List.length

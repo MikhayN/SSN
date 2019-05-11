@@ -50,10 +50,16 @@ let pathLog = sprintf @"%sresults\" General.pathToData
 
 //File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [headerLog])
 
+let mutable countOverall = 0
+
 let walkingFnWrite fileLogName kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,Item>>) gainFn (data: Map<string, Item []>)  = 
     
-    let fileNameSubindex = sprintf "%i-%i" depth ((data |> Map.toArray).[0] |> snd).[0].ID
+    //let fileNameSubindex = sprintf "%i-%i" depth ((data |> Map.toArray).[0] |> snd).[0].ID
+    let fileNameSubindex = sprintf "%i" countOverall
+    File.AppendAllLines((sprintf "%s%s\\%s.txt" pathLog fileLogName fileNameSubindex), ["StepN\tDirN\tGainBefore\tGainNow"])
     //File.AppendAllLines((sprintf "%sQDict_%s.txt" pathLog fileLogName), ["new walking started"; headerLog])
+
+    countOverall <- countOverall + 1
 
     let mutable qDictionary: Map<(int list list),((float*(int list list)) [] [])> = Map.empty
 
@@ -110,7 +116,8 @@ let walkingFnWrite fileLogName kmeanKKZ depth matrixSingletons (singles: Map<str
         let initialState = (gainFnn data singleGG matrixSingles fn initStateIDs, initStateIDs)
 
         let fileLog = sprintf "0\t0\t0.\t%f" (fst initialState)
-        File.AppendAllLines((sprintf "%sQDict_%s_%s.txt" pathLog fileLogName fileNameSubindex), [fileLog])
+        //File.AppendAllLines((sprintf "%sQDict_%s_%s.txt" pathLog fileLogName fileNameSubindex), [fileLog])
+        File.AppendAllLines((sprintf "%s%s\\%s.txt" pathLog fileLogName fileNameSubindex), [fileLog])
 
         let clusterMA = matrixA |> List.distinct
         let pairArray' = Array.allPairs [|0 .. (data.Length-1)|] [|0 .. (clusterMA.Length)|] 
@@ -159,8 +166,9 @@ let walkingFnWrite fileLogName kmeanKKZ depth matrixSingletons (singles: Map<str
                         let mA_new = snd mG.[a].[b]
 
                         let fileStep = sprintf "%i\t%i\t%f\t%f" iStep countDirections gainCurrent (pq.Top())
-                        File.AppendAllLines((sprintf "%sQDict_%s_%s.txt" pathLog fileLogName fileNameSubindex), [fileStep])
-
+                        //File.AppendAllLines((sprintf "%sQDict_%s_%s.txt" pathLog fileLogName fileNameSubindex), [fileStep])
+                        File.AppendAllLines((sprintf "%s%s\\%s.txt" pathLog fileLogName fileNameSubindex), [fileStep])
+                        
                         pq.Pop() |> ignore // pq will be used for other directiones in while loop
 
                         // find all values in mG with the same state and exclude possibility to go there again 
@@ -233,9 +241,9 @@ let walkingFnWrite fileLogName kmeanKKZ depth matrixSingletons (singles: Map<str
 
 ///////////////////////////
 
-let applySST_walk_write setN path data = async {
-    return (SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (Clustering.kmeanGroupsKKZ, (walkingFnWrite path) )) data)
-    }
+let applySST_walk_write setN path data = 
+    countOverall <- 0
+    (SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (Clustering.kmeanGroupsKKZ, (walkingFnWrite path) )) data)
 
 let dataSet =
     ChlamyProteome.dataAll
@@ -246,25 +254,30 @@ let dataSet =
 dataSet |> Array.iter (fun i -> printfn "%s" i.[0].OriginalBin.[0])
 
 
+let dataPOI = 
+    ChlamyProteome.dataAll
+    |> Array.filter (fun x -> x.BinL.[0]="29")
+    |> Array.sortBy (fun x -> x.ProteinL)
+    |> Array.mapi (fun id x -> {x with ID=id})
+
+applySST_walk_write dataPOI.Length (dataPOI.[0].OriginalBin.[0]) dataPOI
+
+
 let treesTracking =
     dataSet
     |> Array.map (fun x -> applySST_walk_write x.Length (x.[0].OriginalBin.[0]) x)
-    |> Async.Parallel
-    |> Async.RunSynchronously
+
 
 
 /////////////////////////// ####### plot path walking tree
 
 open FSharpAux.IO
 
-type DoubleArrayConverter() = 
-        inherit SchemaReader.Attribute.ConverterAttribute()
-        override this.convertToObj = 
-            SchemaReader.Converter.Collection (fun (strs : seq<string>) -> 
-                                                    (strs |> Seq.map (fun s -> FSharpAux.String.tryParseFloatDefault nan s) |> Seq.toArray) |> box)
-
 type ProteinItemRead = {
-        [<SchemaReader.Attribute.FieldAttribute([| "StepN";"DirectionN";"GainBefore";"GainNow" |])>]  [<DoubleArrayConverter>]    Features        : float []
+        [<SchemaReader.Attribute.FieldAttribute("StepN" )>]     [<ArabiTranscriptome.DoubleConverter>]    StepN        : float 
+        [<SchemaReader.Attribute.FieldAttribute("DirN")>]       [<ArabiTranscriptome.DoubleConverter>]    DirN         : float 
+        [<SchemaReader.Attribute.FieldAttribute("GainBefore")>] [<ArabiTranscriptome.DoubleConverter>]    GainBefore   : float 
+        [<SchemaReader.Attribute.FieldAttribute("GainNow" )>]   [<ArabiTranscriptome.DoubleConverter>]    GainNow      : float 
         }
 
 //// Read Proteins database
@@ -272,23 +285,25 @@ let reader = new SchemaReader.Csv.CsvReader<ProteinItemRead>(schemaMode=SchemaRe
 
 /// Variable, contains all raw data from protein DataBase file in csvPath
 let dataProtein file = 
-    reader.ReadFile (file, General.separatorTab, General.hasHeader) 
+    reader.ReadFile (file, General.separatorTab, true) 
     |> Seq.toArray
 
-let linesFromFile path = 
-    dataProtein (sprintf @"%s\results\WalkingSteps for Chlamy Proteome\QDict_%s.txt" General.pathToData path)
-    |> Array.map (fun x -> [(x.Features.[0]-1.,x.Features.[2]);(x.Features.[0],x.Features.[3])],x.Features.[1])
+let linesFromFile file = 
+    dataProtein (sprintf @"%s\results\%s.txt" General.pathToData file)
+    //|> Array.map (fun x -> [(x.Features.[0]-1.,x.Features.[2]);(x.Features.[0],x.Features.[3])],x.Features.[1])
 
-(linesFromFile "28").Length
+let tryOn = (linesFromFile "29\\1")//.Length
 
-let closestPath (lines: (((float * float) list ) * float) [] ) = 
-    let max = lines |> Array.maxBy (fun (i,_) -> snd i.[1]) |> fst |> List.item 1 |> snd
-    let closOpt = lines |> Array.filter (fun (i,_) -> (snd i.[1]) = max ) |> Array.minBy (fun (i,_) -> fst i.[1])
+let closestPath (lines: ProteinItemRead [] ) = 
 
-    let rec loop (nextStep: ((float * float) list ) * float) = 
+    let max = (lines |> Array.maxBy (fun i -> i.GainNow)).GainNow
+
+    let closOpt = lines |> Array.find (fun (i) -> i.GainBefore = max)
+
+    let rec loop (nextStep: ProteinItemRead) = 
         [
-        let prevStep = lines |> Array.find (fun (i,_) -> (fst i.[1])=(fst (fst nextStep).[0]) && (snd i.[1])=(snd (fst nextStep).[0]) )
-        if ((fst prevStep).[0] |> fst) = 0. then
+        let prevStep = lines |> Array.find (fun (i) -> i.GainNow = nextStep.GainBefore )
+        if prevStep.GainBefore = 0. then
             yield prevStep
         else
             yield prevStep
@@ -296,15 +311,19 @@ let closestPath (lines: (((float * float) list ) * float) [] ) =
 
     closOpt :: (loop closOpt)
 
-let startMinEnd (closestPath: ((float * float) list * float) list ) =
-    let start = (closestPath.Head |> fst ).[0] |> snd
-    let endG =  (closestPath |> List.last |> fst ).[1] |> snd
-    let minG = closestPath |> List.map (fun x -> ((x |> fst).[1] |> snd) - ((x |> fst).[0] |> snd) ) |> List.min // if negative, no sinking
+let startMinEnd (closestPath: ProteinItemRead list ) =
+    
+    let start = (closestPath.Head).GainBefore
+    let endG =  (closestPath |> List.last).GainNow
+
+    let minG = closestPath |> List.map (fun x -> x.GainBefore - x.GainNow ) |> List.max // if negative, no sinking
     (start, minG, endG)
 
 let getSingleDelta (sme: float * float * float) =
     let (s,m,e) = sme
     (e-s)/(m) // if negative, don't count
+
+let average delta with filtering negative stuff
 
 let plotGainWalk (a: (((float * float) list ) * float) [] ) =
     let color = function
