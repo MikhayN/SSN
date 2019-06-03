@@ -57,6 +57,10 @@ open FunctionsExp
 
 let mutable stepCount = 0
 
+let delta = 0.06
+
+open BioFSharp
+
 let reflectStateID (matrixA) =
     matrixA 
     |> List.distinct
@@ -221,8 +225,10 @@ let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,I
             
             seq [ while 
                 (pq.Length>0) 
-                && (pq.Top()>0.) 
-                && (countDirections<1) && (iStep<5) do // (pq.Top() > gainCurrent) && (countDirections<3) && (iStep<6)
+                && (pq.Top()>(gainCurrent - delta*gainCurrent)) // no sinking lower delta
+                //&& (countDirections<1) // max direction checked = 1
+                //&& (iStep<5) // max path length = 5
+                do 
                 
                     countDirections <- countDirections + 1
                     
@@ -472,10 +478,6 @@ let createTreeWalking gainFn (weight: seq<float> option) (mode: Mode) (rootGroup
     
     loop rootGroup 0 0.
 
-//!!! Rethink idea of directions!!! not element -> element but element -> cluster
-
-
-
 let applySSNcombi data setN = createTreeWalking (SSN.getStepGainNodeSetnR setN) None SSN_combi data
 let applySSN data setN = createTreeWalking (SSN.getStepGainNodeSetnR setN) None (SSN_walk (FunctionsExp.PreClusterFunctions.kmeanGroupsKKZ, (walkingFn))) data
 let readMM data setN = createTreeWalking (SSN.getStepGainNodeSetnR setN) None MM data
@@ -575,9 +577,9 @@ let pathsSorted =
     |> Array.map (fst)
     
 let pathsSortedChildren =
-    ArabiProteome.itemsWithMapManFound  //ChlamyProteome.dataAll //ArabiTranscriptome.itemsWithMapManIdentified //ArabiProteome.itemsWithMapManFound 
+    ChlamyProteome.dataAll //  ArabiTranscriptome.itemsWithMapManIdentified //ArabiProteome.itemsWithMapManFound 
     |> Array.groupBy (fun x -> x.BinL.[0])
-    |> Array.filter (fun (bin,l) -> l.Length > 2)
+    |> Array.filter (fun (bin,l) -> l.Length > 2 && bin<>"35")
     |> Array.map (fun (bin,l) -> 
         let data = l |> Array.mapi (fun id x -> {x with ID=id})
         let tree = readMM data data.Length
@@ -589,14 +591,14 @@ let pathsSortedChildren =
 let pathFile = sprintf @"%sresults\" General.pathToData
 let neader = "Path\tnRoot\tchildrenMax\tcombi_GG\tcombi_Time\tcombi_DxC\twalk_GG\twalk_Time\twalk_DxC\ttreeComparison\tTimeRatio"
 
-File.AppendAllLines((sprintf "%s%s.txt" pathFile "newAraProtData_NoRepetitions_d1s5"), [neader])
+File.AppendAllLines((sprintf "%s%s.txt" pathFile "newAraProtData_NoRepetitions_d1s5_del06"), [neader])
 
 let lines = 
     [|"22"; "6"; "24"; "5"; "14"; "17"; "2"; "25"; "23"; "16"; "8"; "12"; "7"; "15"; "18";|]
     |> List.ofArray
     |> List.map (fun path -> 
         let data = 
-            ArabiProteome.itemsWithMapManFound // ChlamyProteome.dataAll //ArabiProteome.itemsWithMapManFound
+            ChlamyProteome.dataAll // ArabiProteome.itemsWithMapManFound // ArabiProteome.itemsWithMapManFound
             |> Array.filter (fun x -> x.BinL.[0]=path)
             |> Array.mapi (fun id x -> {x with ID=id})
         let tree = readMM data data.Length
@@ -642,18 +644,18 @@ let lines =
             sprintf "%s\t%i\t%i\t%f\t%f\t%f\t%f\t%f\t%f\t%i\t%f" 
                 path data.Length childrenN combi.GroupGain timeCombi dxcC walk.GroupGain timeWalk dxcW treeComp (timeCombi/timeWalk)
         
-        File.AppendAllLines((sprintf "%s%s.txt" pathFile "newAraProtData_NoRepetitions_d1s5"), [line])
+        File.AppendAllLines((sprintf "%s%s.txt" pathFile "newAraProtData_NoRepetitions_d1s5_del06"), [line])
 
         line
         )
 
 
 let linesWAcombi = 
-    [|"10"; "13"; "9"; "11"; "4"; "34"; "3"; "19"; "28"; "21"; "26"; "33"; "1"; "27"; "20"; "30"; "29"; "31";|]
+    pathsSortedChildren // [|"13"; "9"; "11"; "4"; "34"; "3"; "19"; "28"; "21"; "26"; "33"; "1"; "27"; "20"; "30"; "29"; "31";|]
     |> List.ofArray
     |> List.map (fun path -> 
         let data = 
-            ArabiProteome.itemsWithMapManFound // ChlamyProteome.dataAll //ArabiProteome.itemsWithMapManFound
+            ChlamyProteome.dataAll // ArabiProteome.itemsWithMapManFound //   ArabiProteome.itemsWithMapManFound
             |> Array.filter (fun x -> x.BinL.[0]=path)
             |> Array.mapi (fun id x -> {x with ID=id})
         let tree = readMM data data.Length
@@ -691,7 +693,7 @@ let linesWAcombi =
             sprintf "%s\t%i\t%i\t%f\t%f\t%f\t%f\t%f\t%f\t%i\t%f" 
                 path data.Length childrenN 0. 0. 0. walk.GroupGain timeWalk dxcW 0 0.
         
-        File.AppendAllLines((sprintf "%s%s.txt" pathFile "newAraProtData_NoRepetitions_d2s5"), [line])
+        File.AppendAllLines((sprintf "%s%s.txt" pathFile "ChlamyProtData_NoRepetitions_del06_nods"), [line])
 
         line
         )

@@ -1,0 +1,1 @@
+StepN	DirN	GainBefore	GainNow

@@ -24,6 +24,7 @@
 open System 
 open System.IO 
 open FSharpAux
+open FSharpAux.IO
 open FSharp.Plotly
 open FSharp.Stats
 
@@ -45,8 +46,8 @@ open ElbowCriteria
 
 //let fileLogName = "QDict_ChlaProt_Path29_d2s5"
 
-let headerLog = "StepN\tDirectionN\tGainBefore\tGainNow" 
-let pathLog = sprintf @"%sresults\" General.pathToData
+let headerLog = "StepN\tDirN\tGainBefore\tGainNow" 
+let pathLog = sprintf @"%sresults\Arabi\" General.pathToData
 
 //File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [headerLog])
 
@@ -56,7 +57,7 @@ let walkingFnWrite fileLogName kmeanKKZ depth matrixSingletons (singles: Map<str
     
     //let fileNameSubindex = sprintf "%i-%i" depth ((data |> Map.toArray).[0] |> snd).[0].ID
     let fileNameSubindex = sprintf "%i" countOverall
-    File.AppendAllLines((sprintf "%s%s\\%s.txt" pathLog fileLogName fileNameSubindex), ["StepN\tDirN\tGainBefore\tGainNow"])
+    File.AppendAllLines((sprintf "%s%s\\%s.txt" pathLog fileLogName fileNameSubindex), [headerLog])
     //File.AppendAllLines((sprintf "%sQDict_%s.txt" pathLog fileLogName), ["new walking started"; headerLog])
 
     countOverall <- countOverall + 1
@@ -246,17 +247,22 @@ let applySST_walk_write setN path data =
     (SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (Clustering.kmeanGroupsKKZ, (walkingFnWrite path) )) data)
 
 let dataSet =
-    ChlamyProteome.dataAll
+    ArabiProteome.itemsWithMapManIdentified //ChlamyProteome.dataAll
     |> Array.groupBy (fun x -> x.BinL.[0])
     |> Array.map (snd >> Array.mapi (fun id x -> {x with ID=id}))
     |> Array.filter (fun il -> il.Length>2 && il.[0].OriginalBin.[0]<>"35")
+    |> Array.sortBy (fun data -> 
+        let tree = readMM data.Length data 
+        let childrenN = Tree.filterChildrenList tree
+        childrenN |> List.max
+    )
 
 dataSet |> Array.iter (fun i -> printfn "%s" i.[0].OriginalBin.[0])
 
 
 let dataPOI = 
-    ChlamyProteome.dataAll
-    |> Array.filter (fun x -> x.BinL.[0]="29")
+    ArabiProteome.itemsWithMapManIdentified //ChlamyProteome.dataAll
+    |> Array.filter (fun x -> x.BinL.[0]="23")
     |> Array.sortBy (fun x -> x.ProteinL)
     |> Array.mapi (fun id x -> {x with ID=id})
 
@@ -265,13 +271,13 @@ applySST_walk_write dataPOI.Length (dataPOI.[0].OriginalBin.[0]) dataPOI
 
 let treesTracking =
     dataSet
-    |> Array.map (fun x -> applySST_walk_write x.Length (x.[0].OriginalBin.[0]) x)
+    |> Array.map (fun x -> 
+        printfn "starting bin %s" x.[0].OriginalBin.[0]
+        applySST_walk_write x.Length (x.[0].OriginalBin.[0]) x)
 
 
 
 /////////////////////////// ####### plot path walking tree
-
-open FSharpAux.IO
 
 type ProteinItemRead = {
         [<SchemaReader.Attribute.FieldAttribute("StepN" )>]     [<ArabiTranscriptome.DoubleConverter>]    StepN        : float 
@@ -292,40 +298,144 @@ let linesFromFile file =
     dataProtein (sprintf @"%s\results\%s.txt" General.pathToData file)
     //|> Array.map (fun x -> [(x.Features.[0]-1.,x.Features.[2]);(x.Features.[0],x.Features.[3])],x.Features.[1])
 
-let tryOn = (linesFromFile "29\\1")//.Length
+let tryOn = (linesFromFile "Arabi\\8\\1")//.Length
 
 let closestPath (lines: ProteinItemRead [] ) = 
 
-    let max = (lines |> Array.maxBy (fun i -> i.GainNow)).GainNow
-
-    let closOpt = lines |> Array.find (fun (i) -> i.GainBefore = max)
-
+    let closOpt = (lines |> Array.maxBy (fun i -> i.GainNow))
+    
     let rec loop (nextStep: ProteinItemRead) = 
         [
-        let prevStep = lines |> Array.find (fun (i) -> i.GainNow = nextStep.GainBefore )
-        if prevStep.GainBefore = 0. then
-            yield prevStep
+        if nextStep.GainBefore = 0. then
+            yield nextStep
         else
-            yield prevStep
+            yield nextStep
+            let prevStep = lines |> Array.find (fun (i) -> i.GainNow = nextStep.GainBefore )
             yield! loop prevStep]
 
-    closOpt :: (loop closOpt)
+    (loop closOpt)
+
+closestPath tryOn
+
+//////////////////
 
 let startMinEnd (closestPath: ProteinItemRead list ) =
-    
-    let start = (closestPath.Head).GainBefore
-    let endG =  (closestPath |> List.last).GainNow
+    let endG = (closestPath.Head).GainNow
+    let start =  (closestPath |> List.last).GainNow
+    let maxDeltaG = closestPath |> List.maxBy (fun x -> x.GainBefore - x.GainNow ) // if negative, no sinking
+    (start, maxDeltaG, endG)
 
-    let minG = closestPath |> List.map (fun x -> x.GainBefore - x.GainNow ) |> List.max // if negative, no sinking
-    (start, minG, endG)
+startMinEnd (closestPath tryOn)
 
-let getSingleDelta (sme: float * float * float) =
-    let (s,m,e) = sme
-    (e-s)/(m) // if negative, don't count
+let getSingleDelta (sme: float * ProteinItemRead * float) =
+    let (s,mD,e) = sme
+    (mD.GainBefore - mD.GainNow)/(mD.GainBefore) // if negative, don't count
 
-let average delta with filtering negative stuff
+let averageDelta (dataD: (float*ProteinItemRead*float) list) =
+    if dataD=[] then 0.
+    else
+        let listChosen = 
+            dataD
+            |> List.choose 
+                (fun (s,mD,e) -> 
+                    if e>=s then
+                        let delta = getSingleDelta (s,mD,e)
+                        if delta>0. then
+                            Some delta
+                        else None
+                    else None)
+        if listChosen = [] then 0.
+        else
+            listChosen
+            |> List.average
 
-let plotGainWalk (a: (((float * float) list ) * float) [] ) =
+
+let maxDelta (dataD: (float*ProteinItemRead*float) list) =
+    if dataD=[] then 0.
+    else
+        let listChosen = 
+            dataD
+            |> List.choose 
+                (fun (s,mD,e) -> 
+                    if e>=s then
+                        let delta = getSingleDelta (s,mD,e)
+                        if delta>0. then
+                            Some delta
+                        else None
+                    else None)
+        if listChosen = [] then 0.
+        else
+            listChosen
+            |> List.max
+
+let manyPaths bin maxFileName =
+    [0 .. maxFileName]
+    |> List.map (fun i -> 
+        i
+        |> sprintf "Arabi\\%i\\%i" bin
+        |> linesFromFile)
+    |> List.filter (fun i -> i<>[||])
+    |> List.map
+        (closestPath >> startMinEnd)
+    |> maxDelta
+
+// {number of step, avoided by setting delta} against {number of steps, taken despite the delta}
+let estimLowerThanDelta bin maxFileName delta =
+    let parted =
+        [|0 .. maxFileName|]
+        |> Array.map (fun i -> 
+            i
+            |> sprintf "Arabi\\%i\\%i" bin
+            |> linesFromFile)
+        |> Array.filter (fun i -> i<>[||])
+        |> Array.concat
+        |> Array.partition (fun i -> (i.GainBefore - i.GainNow)/i.GainBefore >= delta)
+    //parted
+    ( float (fst parted).Length ) / ( float (snd parted).Length )
+
+// Chlamy
+let deltas29 = manyPaths 29 41
+
+// Arabi -> set { DELTA = 6% }
+let deltas8 = manyPaths 8 19 // 3% aver // 5.7% max
+let deltas11 = manyPaths 11 25 // no sinking 
+let deltas23 = manyPaths 23 21 // no sinking
+let deltas22 = manyPaths 22 1 // no sinking
+let deltas6 = manyPaths 6 2 // no sinking
+let deltas24 = manyPaths 24 2 // no sinking
+let deltas5 = manyPaths 5 2 // no sinking
+let deltas14 = manyPaths 14 3 // no sinking
+let deltas17 = manyPaths 17 22 // 0.3% aver // 0.3% max
+let deltas2 = manyPaths 2 22 // no sinking
+let deltas25 = manyPaths 25 5 // no sinking
+let deltas12 = manyPaths 12 6 // no sinking
+let deltas7 = manyPaths 7 4 // no sinking
+let deltas16 = manyPaths 16 37 // no sinking
+let deltas18 = manyPaths 18 7 // no sinking
+let deltas15 = manyPaths 15 2 // no sinking
+let deltas13 = manyPaths 13 64 // 4.6% aver // 4.6% max
+
+let estim8 = estimLowerThanDelta 8 19 0.06 // 37 vs 100
+let estim11 = estimLowerThanDelta 11 25 0.06 // 24 vs 100
+let estim23 = estimLowerThanDelta 23 21 0.06 // 39 vs 100
+let estim22 = estimLowerThanDelta 22 1 0.06 // 50 vs 100
+let estim6 = estimLowerThanDelta 6 2 0.06 // 60 vs 100
+let estim24 = estimLowerThanDelta 24 2 0.06 // 15 vs 100
+let estim5 = estimLowerThanDelta 5 2 0.06 // 19 vs 100
+let estim14 = estimLowerThanDelta 14 3 0.06 // 52 vs 100
+let estim17 = estimLowerThanDelta 17 22 0.06 // 40 vs 100
+let estim2 = estimLowerThanDelta 2 22 0.06 // 36 vs 100
+let estim25 = estimLowerThanDelta 25 5 0.06 // 22 vs 100
+let estim12 = estimLowerThanDelta 12 6 0.06 // 10 vs 100
+let estim7 = estimLowerThanDelta 7 4 0.06 // 17 vs 100
+let estim16 = estimLowerThanDelta 16 37 0.06 // 27 vs 100
+let estim18 = estimLowerThanDelta 18 7 0.06 // 5 vs 100
+let estim15 = estimLowerThanDelta 15 2 0.06 // 5 vs 100
+let estim13 = estimLowerThanDelta 13 64 0.06 // 40 vs 100
+
+/////////
+
+let plotGainWalk (a: ProteinItemRead [] ) =
     let color = function
         |1 -> colorBlue
         |2 -> colorBrightBlue
@@ -336,9 +446,10 @@ let plotGainWalk (a: (((float * float) list ) * float) [] ) =
  
     let lines = 
         a
-        |> Array.map (fun (i,j) -> 
-                        let c = color (int j)
-                        Chart.Line (i, Color = c)
+        |> Array.map (fun (i) -> 
+                        let c = color (int i.DirN)
+                        let line = [(i.StepN-1.,i.GainBefore);(i.StepN,i.GainNow)]
+                        Chart.Line (line, Color = c)
                     )
         |> Array.toList
         |> List.rev
@@ -347,16 +458,9 @@ let plotGainWalk (a: (((float * float) list ) * float) [] ) =
         a
         |> closestPath
         |> (fun l ->
-            (l |> List.head |> fst).[1]::(l |> List.map (fun (i,_) -> i.[0]))
+            ((l |> List.head).StepN,(l |> List.head).GainNow) :: (l |> List.map (fun (i) -> (i.StepN-1.,i.GainBefore)))
             )
                         
     (Chart.Line (pathToOptimal, Color = "rgba(0,0,0,1)"))::lines |> List.rev |> Chart.Combine |> Chart.Show
 
-plotGainWalk linesFromFile
-
-
-
-closestPath linesFromFile
-|> (fun l ->
-            (l |> List.head |> fst).[1]::(l |> List.map (fun (i,_) -> i.[0]))
-            )
+plotGainWalk (tryOn)

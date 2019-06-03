@@ -692,8 +692,10 @@ module ArabiProteome =
 
     let ItemsWithMapMan = 
         dataProteinTA |> Array.mapi (fun id x -> mapItemsToMapMan id x)
+
     let itemsWithMapManFound = 
         ItemsWithMapMan |> Array.filter (fun x -> x.OriginalBin<>[||]) |> Array.distinctBy (fun x -> x.ProteinL)
+
     let itemsWithMapManIdentified =
         itemsWithMapManFound |> Array.filter (fun x -> x.OriginalBin.[0]<>"35")
 
