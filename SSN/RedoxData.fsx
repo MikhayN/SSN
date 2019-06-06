@@ -343,6 +343,52 @@ data |> Array.filter (fun i -> (i.Organism |> String.contains "Chlamy") && i.Lab
 data |> Array.filter (fun i -> (i.Organism |> String.contains "Arab") && i.Label=true) |> Array.length
 data |> Array.filter (fun i -> not (i.Organism |> String.contains "Arab") && not (i.Organism |> String.contains "Chlamy")) |> Array.length
 
+/// Evaluation data: RSC and BALOSCTdb
+
+let dataRSC =
+    FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\dataFiles\RSC758.txt" 
+    |> Seq.toList  
+    |> List.tail
+    |> List.map (fun x -> 
+        let i = (x |> String.split '\t')
+            
+        i.[0 .. 3]) 
+    |> List.map (fun x -> 
+
+        let org = (x.[0] |> String.split '_').[1]
+        let protID = x.[0]
+        let protSeq = x.[3] //""
+        let cysSeq = x.[3]
+        let cysP = 10 //x.[1] |> String.tryParseIntDefault 0
+        let label = x.[2]="1"
+        
+        fillCysItem 0 org protID protSeq cysP cysSeq label )
+
+    |> List.toArray
+    |> Array.filter (fun i -> i.CysSeq.[10]='C')
+
+let dataBALOSCT =
+    FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\dataFiles\BALOSCTdb.txt" 
+    |> Seq.toList  
+    |> List.tail
+    |> List.map (fun x -> 
+        let i = (x |> String.split '\t')
+            
+        i.[0 .. 3]) 
+    |> List.map (fun x -> 
+
+        let org = (x.[0] |> String.split '_').[1]
+        let protID = x.[0]
+        let protSeq = x.[3] // ""
+        let cysSeq = x.[3]
+        let cysP = 10 // x.[1] |> String.tryParseIntDefault 0
+        let label = x.[2]="1"
+        
+        fillCysItem 0 org protID protSeq cysP cysSeq label )
+
+    |> List.toArray
+    |> Array.filter (fun i -> i.CysSeq.[10]='C')
+
 /////////////// FEATURES
 
 let one_hot_encoding (sequence: string) =
@@ -352,53 +398,46 @@ let one_hot_encoding (sequence: string) =
         for ai in [0 .. aa.Length-1] do
             m.[ii,ai] <- if sequence.[ii]=aa.[ai] then 1 else 0 
     m
+    |> Array2D.array2D_to_seq
+    |> Seq.toArray
 
 let getFlankingRegion fl (item: CysItem) =
-    let startP = 
-        if item.CysPosition-fl<0 then 0
-        else item.CysPosition-fl
-    let len =
-        if (item.CysPosition+fl)>(item.ProteinSeq.Length-1) then (item.ProteinSeq.Length-item.CysPosition-1)
-        else (fl + fl + 1)
-    item.ProteinSeq |> String.subString startP len
-
-let getFlankingRegionChars fl (item: CysItem) =
-    let startP = 
-        if item.CysPosition-fl<0 then 0
-        else item.CysPosition-fl
-    let len =
-        if (item.CysPosition+fl)>(item.ProteinSeq.Length-1) then (item.ProteinSeq.Length-item.CysPosition-1)
-        else (fl + fl + 1)
-    item.ProteinSeq 
-    |> String.subString startP len
-    |> String.toCharArray |> Array.fold (fun acc i -> sprintf "%s %c" acc i) ""
-
-let getFlankingRegionTabs fl (item: CysItem) =
     let emptyP = 
-        if (item.CysPosition-fl<0) then -(item.CysPosition-fl) + 1
+        if (item.CysPosition-fl<0) then -(item.CysPosition-fl)
         else 0
     let startP = 
         if item.CysPosition-fl<0 then 0
         else item.CysPosition-fl
     let emptyAfter = 
-        if (item.CysPosition+fl)>=(item.ProteinSeq.Length) then ((item.CysPosition + fl) - (item.ProteinSeq.Length - 1) + 1)
+        if (item.CysPosition+fl)>=(item.ProteinSeq.Length) then ((item.CysPosition + fl) - (item.ProteinSeq.Length - 1) )
         else 0
     let len =
         if (item.CysPosition+fl)>(item.ProteinSeq.Length-1) then (item.ProteinSeq.Length-item.CysPosition+fl)-emptyP
         else (fl + fl + 1)-emptyP
-    let ending = String.Join("\t", Array.create emptyAfter "")
-    let beginning = String.Join("\t", Array.create emptyP "")
-    (item.ProteinSeq 
-    |> String.subString startP len
-    |> String.toCharArray 
-    |> Array.fold (fun acc i -> sprintf "%s\t%c" acc i) beginning)
-    + ending
+    let ending = String.fromCharArray(Array.create emptyAfter '_')
+    let beginning = String.fromCharArray(Array.create emptyP '_')
+    beginning + (item.ProteinSeq |> String.subString startP len) + ending
 
-data.[5000] |> getFlankingRegion 2
-data.[5000] |> getFlankingRegionChars 2
-data.[5000] |> getFlankingRegionTabs 4
-data.[35] |> getFlankingRegionTabs 4 |> String.split '\t'
-
+let getFlankingRegionTabs fl (item: CysItem) =
+    let emptyP = 
+        if (item.CysPosition-fl<0) then -(item.CysPosition-fl)
+        else 0
+    let startP = 
+        if item.CysPosition-fl<0 then 0
+        else item.CysPosition-fl
+    let emptyAfter = 
+        if (item.CysPosition+fl)>=(item.ProteinSeq.Length) then ((item.CysPosition + fl) - (item.ProteinSeq.Length - 1) )
+        else 0
+    let len =
+        if (item.CysPosition+fl)>(item.ProteinSeq.Length-1) then (item.ProteinSeq.Length-item.CysPosition+fl)-emptyP
+        else (fl + fl + 1)-emptyP
+    let ending = String.fromCharArray(Array.create emptyAfter '_')
+    let beginning = String.fromCharArray(Array.create emptyP '_')
+    let charA =
+        beginning + (item.ProteinSeq |> String.subString startP len) + ending
+        |> String.toCharArray 
+    String.Join("\t", charA)
+    
 
 let one_hot_encoding_tabbed (sequence_t: string) =
     let aa = "ARNDCEQGHILKMFPSTWYV"
@@ -411,7 +450,7 @@ let one_hot_encoding_tabbed (sequence_t: string) =
     |> Array2D.array2D_to_seq
     |> Seq.toArray
 
-let itemToLine (item: CysItem) =
+let itemToLine_forNN fl (item: CysItem) =
     let label = 
         if item.Label then 
             "|labels 1 0 "
@@ -419,119 +458,41 @@ let itemToLine (item: CysItem) =
             "|labels 0 1 "
     let feat =
         item
-        |> getFlankingRegionTabs 12
-        |> one_hot_encoding_tabbed
+        |> getFlankingRegion fl
+        |> one_hot_encoding
         |> Array.fold (fun acc i -> sprintf "%s %i" acc i)
             "|features"
     label + feat
 
-let dataLines = data |> Array.map itemToLine |> Array.filter (fun x -> x.Length=1021)
-dataLines.Length // 8702 with any string length / 8543 with 1021 string length
-
+let dataLines = 
+    dataBALOSCT 
+    |> Array.map (itemToLine_forNN 4) 
 
 let dataShaffled = dataLines |> Array.shuffleFisherYates
 
-File.AppendAllLines(@"c:\Users\mikha\Downloads\redoxData_NN_test.txt", dataShaffled.[0 .. 99])  
-File.AppendAllLines(@"c:\Users\mikha\Downloads\redoxData_NN_train.txt", dataShaffled.[100 .. ])  
-
-
-dataShaffled.Length
+File.AppendAllLines(@"c:\Users\mikha\Downloads\dataBALOSCT_NN_test.txt", dataShaffled.[0 ..])  
+File.AppendAllLines(@"c:\Users\mikha\Downloads\dataRSC_NN_train.txt", dataShaffled.[100 .. ])  
 
 data.[35] |> getFlankingRegionTabs 4 |> one_hot_encoding_tabbed 
 
-let dataFlanked = data |> Array.map (fun i -> [(string i.Label) ; (getFlankingRegion 2 i)])
-let dataFlankedSpaced = data |> Array.map (fun i -> [(string i.Label) ; (getFlankingRegionChars 2 i)])
-let dataFlankedTabbed = data |> Array.map (fun i -> (string i.Label) + (getFlankingRegionTabs 12 i))
+//let dataFlanked = data |> Array.map (fun i -> [(string i.Label) ; (getFlankingRegion 4 i)])
 
-let redoxDataFlankedTabbed = redoxData |> Array.map (fun i -> (string i.Label) + (getFlankingRegionTabs 12 i))
+let dataFlankedTabbed = 
+    dataBALOSCT 
+    |> Array.map (fun i -> (string i.Label) + "\t" + (getFlankingRegionTabs 4 i) |> String.replace "_" "")
+
+let redoxDataFlankedTabbed = 
+    redoxData 
+    |> Array.map (fun i -> (string i.Label) + "\t" + (getFlankingRegionTabs 4 i) |> String.replace "_" "")
 
 
 let writeFileData (dataFlanked: string list []) path =
     File.AppendAllLines(path, dataFlanked |> Array.map (fun i ->  String.Join("\t", i)))
 
-writeFileData dataFlanked @"c:\Users\mikha\Downloads\data.txt"
-writeFileData dataFlankedSpaced @"c:\Users\mikha\Downloads\dataSpaced.txt"
-File.AppendAllLines(@"c:\Users\mikha\Downloads\data25Tabbed.txt", dataFlankedTabbed)  
-File.AppendAllLines(@"c:\Users\mikha\Downloads\redoxData25Tabbed.txt", redoxDataFlankedTabbed)  
+//writeFileData dataFlanked @"c:\Users\mikha\Downloads\data.txt"
+
+File.AppendAllLines(@"c:\Users\mikha\Downloads\dataBALOSCT9_featuresTab.txt", dataFlankedTabbed)
+File.AppendAllLines(@"c:\Users\mikha\Downloads\redoxData9_featuresTab.txt", redoxDataFlankedTabbed)
 
 /////////////////// ML
-
-#r @"..\lib\FSharpML.dll"
-#load @"c:\Users\mikha\source\repos\FSharpML\FSharpML.fsx"
-
-open System;
-open Microsoft.ML
-open Microsoft.ML.Data;
-open FSharpML
-open FSharpML.EstimatorModel
-open FSharpML.TransformerModel
-
-
-/// Type representing the Message to run analysis on.
-[<CLIMutable>] 
-type SpamInput = 
-    { 
-        [<LoadColumn(0)>] LabelText : string
-        [<LoadColumn(1)>] Message : string 
-    }
-
-//Create the MLContext to share across components for deterministic results
-let mlContext = MLContext(seed = Nullable 1) // Seed set to any number so you
-                                             // have a deterministic environment
-
-// STEP 1: Common data loading configuration   
-let fullData = 
-    @"c:\Users\mikha\Downloads\data.txt"
-    |> DataModel.fromTextFileWith<SpamInput> mlContext '\t' false 
-
-let trainingData, testingData = 
-    fullData
-    |> DataModel.BinaryClassification.trainTestSplit 0.1
-
-//STEP 2: Process data, create and train the model 
-let model = 
-    EstimatorModel.create mlContext
-    // Process data transformations in pipeline
-    |> EstimatorModel.appendBy (fun mlc -> mlc.Transforms.Conversion.ValueMap(["ham"; "spam"],[false; true],[| struct (DefaultColumnNames.Label, "LabelText") |]))
-    |> EstimatorModel.appendBy (fun mlc -> mlc.Transforms.Text.FeaturizeText(DefaultColumnNames.Features, "Message"))
-    |> EstimatorModel.appendCacheCheckpoint
-    // Create the model
-    |> EstimatorModel.appendBy (fun mlc -> mlc.BinaryClassification.Trainers.StochasticDualCoordinateAscent(DefaultColumnNames.Label, DefaultColumnNames.Features))
-    // Train the model
-    |> EstimatorModel.fit trainingData.Dataview
-
-// STEP3: Run the prediciton on the test data
-let predictions =
-    model
-    |> TransformerModel.transform testingData.Dataview
-
-// STEP4: Evaluate accuracy of the model
-let metrics = 
-    model
-    |> Evaluation.BinaryClassification.evaluate testingData.Dataview
-
-metrics.Accuracy
-metrics.Auc
-metrics.NegativeRecall
-metrics.PositiveRecall
-
-//// Apply used in the article evaluation metrics: ACC, SN, SP, MCC, AUC
-
-
-
-
-//// STEP5: Create prediction engine function related to the loaded trained model
-//let predict = 
-//    TransformerModel.createPredictionEngine<_,SpamInput,SpamInput> model
-
-//// Score
-//let prediction = predict sampleStatement
-
-//// Test a few examples
-//[
-//    "That's a great idea. It should work."
-//    "free medicine winner! congratulations"
-//    "Yes we should meet over the weekend!"
-//    "you win pills and free entry vouchers"
-//] 
-//|> List.iter (classify predictor)
+// look into FSharpML.sln

@@ -100,11 +100,11 @@ module Tree =
     let findNode (keyPath: 'a list) tree = 
         let rec loop (keyPath: 'a list) tree = 
             match keyPath with
-            | [] -> tree.Member
+            | [] -> tree
             | k::key ->             
                 match Map.tryFind k tree.Children with
                 | Some tree -> loop key tree
-                | None -> [||]
+                | None -> emptyP
         loop keyPath.Tail tree
 
     /// find nodeMembers with given keyPath 

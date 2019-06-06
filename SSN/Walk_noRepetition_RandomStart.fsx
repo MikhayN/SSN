@@ -43,7 +43,7 @@ open Plots
 
 let mutable stepCount = 0
 
-let delta = 0.05
+let delta = 0.01
 
 let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,Item>>) gainFn (dataM: Map<string, Item []>) = 
     
@@ -138,7 +138,7 @@ let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,I
                 (pq.Length>0) 
                 && (pq.Top()>(gainCurrent - delta*gainCurrent)) // no sinking lower delta
                 && (countDirections < 1) // max direction checked = 1
-                && (iStep < dataM.Count) //&& (iStep<5) // max path length = 5
+                && (iStep < (dataM.Count/1)) //&& (iStep<5) // max path length = 5
                 do 
                 
                     countDirections <- countDirections + 1
@@ -292,9 +292,17 @@ let applySST_walkRandom_write setN data =
 let asyncApplySSN data setN = async {return (applySST_walk setN data )}
 
 let dataPOI = 
-    ChlamyProteome.dataAll
+    ArabiProteome.itemsWithMapManFound
     |> Array.filter (fun x -> x.BinL.[0]="1")
     |> Array.mapi (fun id x -> {x with ID=id})
+
+let tree1 = applySST_walkRandom_write (1*dataPOI.Length) dataPOI
+
+sendToGephiFromTreeParam tree1
+
+let subbin_1_3 = (tree1 |> Tree.findNode ["1";"3"]) |> Tree.filterLeaves
+
+Plots.drawKinetikRange [|0 .. 7|] "path 1.3 for ArabiProteome" subbin_1_3 |> Chart.Show
 
 let dataSet =
     [|ChlamyProteome.dataAll
@@ -341,9 +349,9 @@ let pathsSortedChildren =
     |> Array.map (fun (x,_,_) -> x)
 
 let pathFile = sprintf @"%sresults\" General.pathToData
-let neader = "Path\tnRoot\tchildrenMax\tcombi_GG\tcombi_Time\tcombi_DxC\twalk_GG\twalk_Time\twalk_DxC\ttreeComparison\tTimeRatio"
+let neader = "Path\tnRoot\tchildrenMax\twalk_GG\twalk_Time\twalk_DxC"
 
-File.AppendAllLines((sprintf "%s%s.txt" pathFile "newArabiProtData_random_d1_del06"), [neader])
+File.AppendAllLines((sprintf "%s%s.txt" pathFile "newArabiProtData_random_d1_del01_sSize"), [neader])
         
 let linesWAcombi = 
     pathsSortedChildren // [|"13"; "9"; "11"; "4"; "34"; "3"; "19"; "28"; "21"; "26"; "33"; "1"; "27"; "20"; "30"; "29"; "31";|]
@@ -380,15 +388,15 @@ let linesWAcombi =
             |> Analysis.pointDxC normMatrix
             |> fun (x,y) -> weightedEuclidean None [x;y] [0.;0.]
 
-        printfn "path; nRoot; childrenMax; combi GG; combi Time; walk GG; walk Time; walk DxC; comparison; TimeRatio"
-        printfn "%s %i %i %f %f %f %f %f %f %i %f" 
-            path data.Length childrenN 0. 0. 0. walk.GroupGain timeWalk dxcW 0 0.
+        printfn "path; nRoot; childrenMax; walk GG; walk Time; walk DxC"
+        printfn "%s %i %i %f %f %f" 
+            path data.Length childrenN walk.GroupGain timeWalk dxcW
 
         let line = 
-            sprintf "%s\t%i\t%i\t%f\t%f\t%f\t%f\t%f\t%f\t%i\t%f" 
-                path data.Length childrenN 0. 0. 0. walk.GroupGain timeWalk dxcW 0 0.
+            sprintf "%s\t%i\t%i\t%f\t%f\t%f" 
+                path data.Length childrenN walk.GroupGain timeWalk dxcW
         
-        File.AppendAllLines((sprintf "%s%s.txt" pathFile "newArabiProtData_random_d1_del06"), [line])
+        File.AppendAllLines((sprintf "%s%s.txt" pathFile "newArabiProtData_random_d1_del01_sSize"), [line])
 
         line
         )

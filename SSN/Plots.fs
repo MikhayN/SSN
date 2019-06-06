@@ -62,7 +62,7 @@ let drawKinetik (data: Item []) time title =
 
 /// draw proteins kinetic as lines
 let drawKinetikTitle (data': Node<string,Item>) (binList : string list) time =
-    let data = data' |> Tree.findNode binList
+    let data = data' |> Tree.findNodeMembers binList
     let dataLine anno (protein: Item)  =
         let data = protein.dataL
         let points = Array.zip time data

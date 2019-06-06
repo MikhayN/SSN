@@ -1,0 +1,1 @@
+Path	nRoot	childrenMax	combi_GG	combi_Time	combi_DxC	walk_GG	walk_Time	walk_DxC	treeComparison	TimeRatio
