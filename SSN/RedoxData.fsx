@@ -17,15 +17,10 @@ open System
 open System.IO
 open FSharp.Stats
 open FSharp.Plotly
-open BioFSharp.IO
 
 open FSharpAux
 open FSharpAux.IO
-
-
-open BioFSharp
-open BioFSharp
-open BioFSharp.Elements
+open BioFSharp.BioID
 
 let findMatches chars str =
     /// Returns whether or not the string matches the beginning of the character array
@@ -53,7 +48,7 @@ let adjustCysPosition protSeq cysSeq cysPs a =
         startSubseq |> List.map (fun x -> x + pInSub) |> List.minBy (fun t -> abs (t-a))
     else a
 
-//Read file of RedoxDB.A
+//Functions
 
 type CysItem =
     {
@@ -64,9 +59,10 @@ type CysItem =
     CysPosition: int;
     CysSeq: string;
     Label: bool;
+    IsPlant: bool;
     }
 
-let fillCysItem cysID org protID protSeq cysP cysSeq label = {CysID=cysID; Organism=org; ProtID=protID; ProteinSeq=protSeq; CysPosition=cysP; CysSeq=cysSeq; Label=label}
+let fillCysItem cysID org protID protSeq cysP cysSeq label plant = {CysID=cysID; Organism=org; ProtID=protID; ProteinSeq=protSeq; CysPosition=cysP; CysSeq=cysSeq; Label=label; IsPlant=plant}
 
 let enum id item = {item with CysID=id}
 
@@ -106,6 +102,35 @@ let fromFile converter (filePath) =
     FileIO.readFile filePath
     |> fromFileEnumerator converter
 
+///////////// prepare PlantNamesSet
+
+let plantSet =
+    ["9POAL"; "9RHOD"; "9ROSI"; "ARATH"; "CARPA"; 
+    "CHLIN"; "CHLRE"; "HORVD"; "JACME"; "MAIZE";
+    "MEDSA"; "ORYSA"; "PEA"; "PRUAR"; "SOYBN";
+    "SPIOL"; "WHEAT"; "DATST"  ]
+
+/// Generate negative samples from the set of positive
+let genNeg posDB = 
+
+    let findNegative (protSeq: string) cysPP = ///// check the function, if the CysPosition is coreecly indexed!
+        let cysPs = protSeq |> String.toCharArray |> Array.indexed |> Array.filter (fun (i,res) -> res='C') |> Array.map (fun (x,_) -> x)
+        cysPP |> Set.ofArray |> Set.difference (cysPs |> Set.ofArray) |> Set.toArray
+
+    let createNegative (dbPart: CysItem []) (seqItem: CysItem)  =
+        let cysPP = dbPart |> Array.filter (fun i -> i.ProtID = seqItem.ProtID ) |> Array.map (fun i -> i.CysPosition)
+        let cysPN = findNegative seqItem.ProteinSeq cysPP
+        cysPN
+        |> Array.map (fun i -> fillCysItem 0 seqItem.Organism seqItem.ProtID seqItem.ProteinSeq i "" false seqItem.IsPlant)
+
+    let negativePool = 
+        posDB
+        |> Array.distinctBy (fun i -> i.ProtID)
+        |> Array.map (createNegative posDB)
+        |> Array.concat
+
+    let r = new Random(0)
+    Array.sampleWithOutReplacement r (negativePool) (posDB.Length)
 
 ////////////// read RedoxData
 
@@ -124,6 +149,7 @@ let readA (line: string list) =
     let protSeq = if (line.[0] |> String.startsWith protID) then (line.[0].[protID.Length ..]) else line.[0]
     let cysP = line |> List.filter (fun s -> s |> String.startsWith "CYSTEINE") |> List.map (String.split ' ' >> Array.item 1 >> String.replace "," "" >> String.tryParseIntDefault 0)
     let label = true
+    let plant = plantSet |> List.contains (protID |> String.split '_').[1]
     [for a in cysP -> 
         let cP = 
             if protSeq.[a-1]='C' then a-1
@@ -134,8 +160,8 @@ let readA (line: string list) =
             elif protSeq.[a+3]='C' then a+3
             elif protSeq.[a-3]='C' then a-3
             else a
-        printfn "seq_Length=%i, item at %i is %c" protSeq.Length cP protSeq.[cP]
-        fillCysItem 0 org protID protSeq (cP) "" label]
+        //printfn "seq_Length=%i, item at %i is %c" protSeq.Length cP protSeq.[cP]
+        fillCysItem 0 org protID protSeq (cP) "" label plant]
 
 let redoxPart =
     itemsA
@@ -144,34 +170,16 @@ let redoxPart =
     |> List.concat
     |> List.toArray
     |> Array.filter (fun i -> i.ProteinSeq.[i.CysPosition]='C')
-
-
-let findNegative (protSeq: string) cysPP = ///// check the function, if the CysPosition is coreecly indexed!
-    let cysPs = protSeq |> String.toCharArray |> Array.indexed |> Array.filter (fun (i,res) -> res='C') |> Array.map (fun (x,_) -> x)
-    cysPP |> Set.ofArray |> Set.difference (cysPs |> Set.ofArray) |> Set.toArray
-
-let createNegative (dbPart: CysItem []) (seqItem: CysItem)  =
-    let cysPP = dbPart |> Array.filter (fun i -> i.ProtID = seqItem.ProtID ) |> Array.map (fun i -> i.CysPosition)
-    let cysPN = findNegative seqItem.ProteinSeq cysPP
-    cysPN
-    |> Array.map (fun i -> fillCysItem 0 seqItem.Organism seqItem.ProtID seqItem.ProteinSeq i "" false)
-
-let negativePool = 
-    redoxPart
-    |> Array.distinctBy (fun i -> i.ProtID)
-    |> Array.map (createNegative redoxPart)
-    |> Array.concat
-
-let negativeRedoxPart =
-    let r = new Random()
-    Array.sampleWithOutReplacement r (negativePool) (redoxPart.Length)
-
+    
+let negativeRedoxPart = genNeg redoxPart
+    
 let redoxData =
     [redoxPart;negativeRedoxPart]
     |> Array.concat
     |> Array.mapi enum
 
-
+redoxPart.Length
+redoxPart |> Array.filter (fun i -> i.IsPlant) |> Array.length
 redoxData.[3073 ..] |> Array.filter (fun i -> i.ProteinSeq.[i.CysPosition]='C') |> Array.length
 redoxData.Length
 
@@ -209,7 +217,7 @@ let llines =
 let itemsC =
     llines
     |> List.map (fun x -> 
-        let org = "Chlamy"
+        let org = " Chlamydomonas reinhardtii"
         let protID = x.[0]
         let protSeq = (sequencesLem |> Array.find (fun i -> i.Header=protID)).Sequence
         let cysSeq = x.[2]
@@ -228,24 +236,17 @@ let itemsC =
                 elif protSeq.[a]='C' then a
                 else adjustCysPosition protSeq cysSeq cysPs a
             
-            fillCysItem 0 org protID protSeq cP cysSeq label] )
+            fillCysItem 0 org protID protSeq cP cysSeq label true] )
     |> List.concat
     |> List.toArray
     |> Array.filter (fun i -> i.ProteinSeq.[i.CysPosition]='C')
     
-let negativePoolC = 
-    itemsC
-    |> Array.distinctBy (fun i -> i.ProtID)
-    |> Array.map (createNegative itemsC)
-    |> Array.concat
-
-let negativePartC =
-    let r = new Random()
-    Array.sampleWithOutReplacement r (negativePoolC) (itemsC.Length)
+let negativePartC = genNeg itemsC
 
 let chlamyData =
     [itemsC;negativePartC]
     |> Array.concat
+
 itemsC.Length
 
 /// Read Ara data
@@ -260,7 +261,6 @@ let sequencesAra =
     |> Array.map (fun i -> 
             let h = i.Header |> String.split '|' |> Array.item 0 |> String.subString 0 9//|> String.tryParseIntDefault 0
             {i with Header=h})
-
 
 let itemsAra = 
     [FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\Tables\Alix_Fares2011.txt" 
@@ -288,7 +288,7 @@ let itemsAra =
         ) ""
     |> fst
     |> List.map (fun x -> 
-        let org = "Arabi"
+        let org = " Arabidopsis thaliana (Mouse-ear cress)"
         let protID = x.[0]
         let protSeq = (sequencesAra |> Array.find (fun i -> i.Header=protID)).Sequence
         let cysSeq = x.[2]
@@ -304,21 +304,12 @@ let itemsAra =
                 elif protSeq.[a]='C' then a
                 else adjustCysPosition protSeq cysSeq cysPs a
             
-            fillCysItem 0 org protID protSeq cP cysSeq label] )
+            fillCysItem 0 org protID protSeq cP cysSeq label true] )
     |> List.concat
     |> List.toArray
     |> Array.filter (fun i -> i.ProteinSeq.[i.CysPosition]='C')
     
-
-let negativePoolAra = 
-    itemsAra
-    |> Array.distinctBy (fun i -> i.ProtID)
-    |> Array.map (createNegative itemsAra)
-    |> Array.concat
-
-let negativePartAra =
-    let r = new Random()
-    Array.sampleWithOutReplacement r (negativePoolAra) (itemsAra.Length)
+let negativePartAra = genNeg itemsAra
 
 let araData =
     [itemsAra;negativePartAra]
@@ -329,9 +320,9 @@ itemsAra.Length
 /// the whole data
 
 let data = 
-    [redoxPart; itemsC; itemsAra; negativePartAra; negativePartC; negativeRedoxPart; araData] 
+    [redoxPart; itemsC; itemsAra; negativePartAra; negativePartC; negativeRedoxPart] 
     |> Array.concat 
-    |> Array.distinctBy (fun x -> (x.ProteinSeq,x.CysPosition))
+    |> Array.distinctBy (fun x -> (x.ProteinSeq,x.CysPosition)) // avoid repetition of samples
     |> Array.mapi enum
 
 data.Length // 8702
@@ -343,8 +334,15 @@ data |> Array.filter (fun i -> (i.Organism |> String.contains "Chlamy") && i.Lab
 data |> Array.filter (fun i -> (i.Organism |> String.contains "Arab") && i.Label=true) |> Array.length
 data |> Array.filter (fun i -> not (i.Organism |> String.contains "Arab") && not (i.Organism |> String.contains "Chlamy")) |> Array.length
 
+data 
+|> Array.distinctBy (fun i -> i.Organism) 
+|> Array.map (fun i -> i.ProtID |> String.split '_' |> (fun arr ->  if arr.Length>1 then arr.[1] else "") , i.Organism)
+|> Array.sortBy (fun (x,y) -> x)
+|> Array.iter (fun x -> printfn "%A" x)
+
 /// Evaluation data: RSC and BALOSCTdb
 
+/// RSC dataset
 let dataRSC =
     FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\dataFiles\RSC758.txt" 
     |> Seq.toList  
@@ -361,12 +359,29 @@ let dataRSC =
         let cysSeq = x.[3]
         let cysP = 10 //x.[1] |> String.tryParseIntDefault 0
         let label = x.[2]="1"
+        let plant = plantSet |> List.contains org
         
-        fillCysItem 0 org protID protSeq cysP cysSeq label )
+        fillCysItem 0 org protID protSeq cysP cysSeq label plant)
 
     |> List.toArray
     |> Array.filter (fun i -> i.CysSeq.[10]='C')
 
+dataRSC |> Array.filter (fun i -> i.IsPlant) |> Array.length
+dataRSC.Length
+let itemsRSC_filtered =
+    dataRSC
+    |> Array.filter (fun x -> not (redoxData |> Array.exists (fun i -> i.ProtID=x.ProtID)))
+itemsRSC_filtered.Length
+
+///
+let mappingFile =
+    FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\Tables\pdbtosp.txt" 
+    |> Seq.toList  
+    |> fun i -> i.[24 ..]
+    |> List.filter (fun i -> i.Length>1)
+    |> List.map (fun x -> (x |> String.subString 0 4), (x |> String.subString  28 12 |> String.filter (fun c -> c<>' ')) )
+
+/// Balanced OSCTdb
 let dataBALOSCT =
     FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\dataFiles\BALOSCTdb.txt" 
     |> Seq.toList  
@@ -374,20 +389,86 @@ let dataBALOSCT =
     |> List.map (fun x -> 
         let i = (x |> String.split '\t')
             
-        i.[0 .. 3]) 
+        i.[0 .. 4]) 
     |> List.map (fun x -> 
 
-        let org = (x.[0] |> String.split '_').[1]
-        let protID = x.[0]
+        //let org = (x.[0] |> String.split '_').[1]
+        let protID' = (x.[0] |> String.split '_').[0]
+        let protID = 
+            mappingFile 
+            |> List.tryFind (fun (k,v) -> k=protID') 
+            |> (fun xx -> if xx.IsSome then xx.Value |> snd else x.[4])
+        let org = (protID |> String.split '_').[1]
         let protSeq = x.[3] // ""
         let cysSeq = x.[3]
         let cysP = 10 // x.[1] |> String.tryParseIntDefault 0
         let label = x.[2]="1"
+        let plant = plantSet |> List.contains org
         
-        fillCysItem 0 org protID protSeq cysP cysSeq label )
+        fillCysItem 0 org protID protSeq cysP cysSeq label plant)
 
     |> List.toArray
     |> Array.filter (fun i -> i.CysSeq.[10]='C')
+
+dataBALOSCT |> Array.filter (fun i -> i.IsPlant) |> Array.length
+dataBALOSCT.Length
+let dataBALOSCT_filtered =
+    dataBALOSCT
+    |> Array.filter (fun x -> not (redoxData |> Array.exists (fun i -> i.ProtID=x.ProtID)))
+
+dataBALOSCT_filtered |> Array.map (fun i -> i.Organism) |> Array.distinct
+
+/// Arabidopsis Dataset from Pxxxxxxx article
+let itemsAraTest =
+    FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\Tables\Ara_TEST.txt" 
+    |> Seq.toList  
+    |> List.tail
+    |> List.map (fun x -> 
+        let i = (x |> String.split '\t')
+        [|i.[1] |> String.map (fun c -> c |> Char.ToUpper)
+        ;i.[2]
+        ;i.[5] |> String.filter (fun c -> c |> Char.IsLetter) |])
+
+    |> List.map (fun x -> 
+        let org = "Arabi"
+        let protID = x.[0]
+        let protSeq = (sequencesAra |> Array.find (fun i -> i.Header=protID)).Sequence
+        let cysSeq = x.[2]
+        let label = true
+        let a = int x.[1] 
+        let cP = 
+                if a>=protSeq.Length-1  then adjustCysPosition protSeq cysSeq [|a|] a
+                elif protSeq.[a-1]='C' then a-1
+                elif protSeq.[a]='C' then a
+                else adjustCysPosition protSeq cysSeq [|a|] a
+            
+        fillCysItem 0 org protID protSeq cP cysSeq label true)
+
+    |> List.toArray
+    |> Array.filter (fun i -> i.ProteinSeq.[i.CysPosition]='C')
+
+itemsAraTest.Length // 61 out of 62
+
+let itemsAraTest_filtered =
+    itemsAraTest
+    |> Array.filter (fun x -> not (data |> Array.exists (fun i -> i.ProteinSeq=x.ProteinSeq && i.CysPosition=x.CysPosition )))
+
+itemsAraTest_filtered.Length // 35 or 37
+
+/// All PLANTS DB
+
+let plantDB =
+    let fromRedoxDB = redoxPart |> Array.filter (fun i -> i.IsPlant)
+    let positive = 
+        [|fromRedoxDB; itemsC; itemsAra;|] 
+        |> Array.concat
+        |> Array.distinctBy (fun x -> (x.ProteinSeq,x.CysPosition))
+    let negative = genNeg positive
+    [positive; negative]
+    |> Array.concat
+    |> Array.mapi enum
+
+plantDB.Length 
 
 /////////////// FEATURES
 
@@ -478,21 +559,17 @@ data.[35] |> getFlankingRegionTabs 4 |> one_hot_encoding_tabbed
 //let dataFlanked = data |> Array.map (fun i -> [(string i.Label) ; (getFlankingRegion 4 i)])
 
 let dataFlankedTabbed = 
-    dataBALOSCT 
-    |> Array.map (fun i -> (string i.Label) + "\t" + (getFlankingRegionTabs 4 i) |> String.replace "_" "")
-
-let redoxDataFlankedTabbed = 
-    redoxData 
-    |> Array.map (fun i -> (string i.Label) + "\t" + (getFlankingRegionTabs 4 i) |> String.replace "_" "")
-
-
+    plantDB
+    |> Array.map (fun i -> 
+        (string i.Label) + "\t" + (getFlankingRegionTabs 4 i) 
+        |> String.replace "_" "")
+        
 let writeFileData (dataFlanked: string list []) path =
     File.AppendAllLines(path, dataFlanked |> Array.map (fun i ->  String.Join("\t", i)))
 
 //writeFileData dataFlanked @"c:\Users\mikha\Downloads\data.txt"
 
-File.AppendAllLines(@"c:\Users\mikha\Downloads\dataBALOSCT9_featuresTab.txt", dataFlankedTabbed)
-File.AppendAllLines(@"c:\Users\mikha\Downloads\redoxData9_featuresTab.txt", redoxDataFlankedTabbed)
+File.AppendAllLines(@"c:\Users\mikha\Downloads\dataPLANT_9_featuresTab.txt", dataFlankedTabbed)
 
 /////////////////// ML
 // look into FSharpML.sln

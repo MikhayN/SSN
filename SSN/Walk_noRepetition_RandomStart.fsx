@@ -251,6 +251,214 @@ let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,I
         |> rename )
     |> Map.ofArray
     
+let walkingParalFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,Item>>) gainFn (dataM: Map<string, Item []>) = 
+    
+    let mutable qDictionary: Map<(int list list),((float*(int list list)) [] [])> = Map.empty
+
+    let dataGroupsA = dataM |> Map.toArray
+
+    let singleGG =
+        dataGroupsA
+        |> Array.map (fun (bin,_) -> 
+                            let node = singles |> Map.find bin 
+                            node.GroupGain)
+
+    /// input data: groups of items
+    let dataGroups = dataGroupsA |> Array.map snd
+
+    let rename (list: (string*(Types.Item [])) []) =
+            if list.Length>1 then
+                let newKey =
+                    list 
+                    |> Array.fold (fun state (k,v) -> (sprintf "%s|%s" state k)) (sprintf "mix")  
+                let newListValue = 
+                    list 
+                    |> Array.map (fun (k,v) -> v) 
+                    |> Array.concat      
+                    |> Array.map (fun protein -> {protein with BinL= Array.append protein.BinL.[0 .. depth] [|newKey|]})   
+                (newKey, newListValue)
+            else
+                list.[0]    
+
+    let superFunctionTestG (data: Item [] []) (singleGG: float []) fn matrixSingles initConf  =
+
+        let initialConfig = 
+            initConf
+            |> Array.map 
+                (Array.map (fun (label,_) -> 
+                    dataGroupsA 
+                    |> Array.findIndex (fun (l,_) -> l=label) )
+                )
+
+        //let fileLogInitState = sprintf "Initial state: %A"  (initConf |> Array.map (Array.map fst))
+        //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogInitState])
+
+        /// adjustency matrix (initialize with initial configuration) 
+        let matrixA =
+            let m = JaggedArray.zeroCreate data.Length data.Length
+            for i=0 to (data.Length-1) do
+                let cluster = initialConfig |> Array.find (fun x -> x |> Array.contains i)
+                for j=0 to (data.Length-1) do
+                    if (cluster |> Array.contains j) then   
+                        m.[i].[j] <- 1
+                    else
+                        m.[i].[j] <- 0
+            m
+            |> Array.map (Array.toList)
+            |> Array.toList
+
+        //let mutable qDictionary': Map<(int list list),(QDictionary_GValue [] [])> = Map.empty
+        //((qDictionary'.Item matrixA).[0].[0]).MaxGain <- 0. 
+
+        let initStateIDs = reflectStateID matrixA
+        let initialState = (gainFnn data singleGG matrixSingles fn initStateIDs, initStateIDs)
+
+        //let fileLogInit = sprintf "0\t0\tnan\tnan\t0.\t%f" (fst initialState)
+        //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogInit])
+
+        //let fileLog = sprintf "0\t0\t0.\t%f" (fst initialState)
+        //File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [fileLog])
+
+        let clusterMA = matrixA |> List.distinct
+        let pairArray' = Array.allPairs [|0 .. (data.Length-1)|] [|0 .. (clusterMA.Length)|] 
+
+        let matrixG_origin = matrixG_from_matrixA data singleGG matrixSingles fn matrixA
+        
+        qDictionary <- (qDictionary.Add (matrixA, matrixG_origin))
+
+        let pq_origin =
+            let n = pairArray'.Length
+            let p = MaxIndexPriorityQueue<float>(n)
+            for id=0 to n-1 do 
+                let (i,ii) = pairArray'.[id]
+                if (fst matrixG_origin.[i].[ii])>0. then p.Insert id (fst matrixG_origin.[i].[ii]) // load all calculated gains
+            p
+
+        let rec loop iStep (mA: int list list) (pairArray: (int*int) []) (mG: (float*(int list list)) [] []) (pq: MaxIndexPriorityQueue<float>) (moved: int []) =
+        
+            let gainCurrent = gainFnn data singleGG matrixSingles fn (reflectStateID mA)
+        
+            let mutable countDirections = 0
+            
+            seq [ while 
+                (pq.Length > 0) 
+                && (pq.Top() > gainCurrent)// - delta*gainCurrent)) // no sinking lower delta
+                && (countDirections < 1) // max direction checked = 1
+                && (iStep < 5)//(dataM.Count/4)) //&& (iStep<5) // max path length = 5
+                do 
+                
+                    countDirections <- countDirections + 1
+                    
+                    // order represents the moving: a - moved element, b - target cluster
+                                     
+
+                    //let fileLogStep = sprintf "%i\t%i\t%i\t%i\t%f\t%f" iStep countDirections a b gainCurrent (pq.Top())
+                    //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogStep])
+
+                    let (a,b) = 
+                        while (pq.Length>0) 
+                            && (qDictionary |> Map.containsKey (snd mG.[fst pairArray.[pq.TopIndex()]].[snd pairArray.[pq.TopIndex()]])) do
+                                pq.Pop() |> ignore
+
+                        if pq.Length=0 then 
+                            (-1,-1)
+                        else
+                            pairArray.[pq.TopIndex()]
+                        
+                    if (a,b)=(-1,-1) then // if the pq is empty and no new states are found
+                        yield! []
+                    else
+
+                        let mA_new = snd mG.[a].[b]
+
+                        //let fileStep = sprintf "%i\t%i\t%f\t%f" iStep countDirections gainCurrent (pq.Top())
+                        //File.AppendAllLines((sprintf "%s%s.txt" pathLog fileLogName), [fileStep])
+
+                        pq.Pop() |> ignore // pq will be used for other directiones in while loop
+
+                        // find all values in mG with the same state and exclude possibility to go there again 
+                        // by adding all a's in moved (don't change mG!) and removing duplicate states from pq
+                        let all_a = 
+                            mG 
+                            |> Array.indexed 
+                            |> Array.filter (fun (_, vL) -> (vL |> Array.contains mG.[a].[b]) )
+                            |> Array.map (fun (i,vl) ->
+                                        let jjj = vl |> Array.findIndex (fun v -> v = mG.[a].[b])
+                                        pq.TryRemove ((i*mG.[0].Length)+jjj)
+                                        i )
+
+                    //if (qDictionary |> Map.containsKey mA_new) then
+                        
+                    //    //let fileLogState = sprintf "%A was already visited, no step further" (reflectStateID mA_new)
+                    //    //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogState]) 
+                        
+                    //    yield! [] // how to get rid of the unnecessary empty lists? 
+                    //else
+                    
+                        //let fileLogState = sprintf "%A" (reflectStateID mA_new)
+                        //File.AppendAllLines((sprintf "%s%s.txt" pathLOG fileSubName), [fileLogState]) 
+
+                        let clusterMA_new = mA_new |> List.distinct
+                        let pairArrayNew = Array.allPairs [|0 .. (data.Length-1)|] [|0 .. (clusterMA_new.Length)|] 
+
+                        let matrixG = matrixG_from_matrixA data singleGG matrixSingles fn mA_new
+                        
+                        qDictionary <- (qDictionary.Add (mA_new, matrixG))
+                        
+                        let pq_new = 
+                            let n = pairArrayNew.Length
+                            let p = MaxIndexPriorityQueue<float>(n)
+                            for j=0 to n-1 do 
+                                let (i,ii) = pairArrayNew.[j]
+                                let gain = fst matrixG.[i].[ii]
+                                if gain>0. then
+                                    p.Insert j (gain) // load all gains except of redundant
+                            p
+                        
+                        let new_moved = Array.append all_a moved |> Array.distinct
+
+                        new_moved
+                        |> Array.iter (fun i ->
+                            let indices = [|(i * matrixG.[0].Length) .. (i * (matrixG.[0].Length) + matrixG.[0].Length - 1)|]
+                            pq_new.TryRemoveGroup indices
+                        )
+
+                        let configuration = reflectStateID mA_new
+                        let gain = gainFnn data singleGG matrixSingles fn (configuration)
+                        let stats = (gain, configuration) 
+
+                        stepCount <- stepCount + 1
+
+                        yield (stats)
+                        yield! loop (iStep+1) mA_new pairArrayNew matrixG pq_new new_moved
+            ]
+    
+        Seq.appendSingleton (loop 1 matrixA pairArray' matrixG_origin pq_origin [||]) initialState 
+
+    let paralFn i =
+        async {return (dataM |> kmeanKKZ i |> superFunctionTestG dataGroups singleGG gainFn matrixSingletons)}
+
+    (seq [singleGG |> Array.sum, Array.init dataM.Count (fun i -> [|i|])]) :: 
+        ([|2 .. 2 .. (dataM.Count-1)|] 
+        |> Array.map (Array.create 2)
+        |> Array.concat
+        |> Array.map (fun i -> paralFn i)
+        |> Async.Parallel
+        |> Async.RunSynchronously
+        |> List.ofArray
+        )
+
+    |> Seq.ofList
+    |> Seq.concat           
+    |> Seq.maxBy (fst)
+    |> snd
+    |> Array.map (fun groupIDs ->     
+        groupIDs 
+        |> Array.map (fun groupID -> 
+            dataGroupsA.[groupID])
+        |> rename )
+    |> Map.ofArray
+
 /// set a random start
 let randomConf (items: Map<string,Item []>) =
     let n = items.Count
@@ -265,7 +473,7 @@ let randomConf (items: Map<string,Item []>) =
     |> Array.groupBy (fun (i,_) -> if i<k then i else r.Next(0,k) )
     |> Array.map (snd >> Array.map (snd))
     
-randomConf (breakGroup TestData.SynData.data1 0)
+//randomConf (breakGroup TestData.SynData.data1 0)
 
 /// set a random start with given k clusters
 let randomKConf k (items: Map<string,Item []>) =
@@ -279,24 +487,35 @@ let randomKConf k (items: Map<string,Item []>) =
     |> Array.groupBy (fun (i,_) -> if i<k then i else r.Next(0,k) )
     |> Array.map (snd >> Array.map (snd))
     
-randomKConf 3 (breakGroup TestData.SynData.data1 0)
+//randomKConf 3 (breakGroup TestData.SynData.data1 0)
 
 //// apply
 
 let applySST_walk_write setN data = 
-    (SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (Clustering.kmeanGroupsKKZ, walkingFn)) data)
+    (SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (Clustering.kmeanGroupsKKZ, (Walk.walkingFn 1 5))) data)
         
 let applySST_walkRandom_write setN data = 
     (SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (randomKConf, walkingFn)) data)
 
+let applySST_walkFastRandom setN data = 
+    (SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (randomKConf, walkingParalFn)) data)
+
 let asyncApplySSN data setN = async {return (applySST_walk setN data )}
+
+
 
 let dataPOI = 
     ArabiProteome.itemsWithMapManFound
     |> Array.filter (fun x -> x.BinL.[0]="1")
     |> Array.mapi (fun id x -> {x with ID=id})
+dataPOI.Length
 
-let tree1 = applySST_walkRandom_write (1*dataPOI.Length) dataPOI
+let tree1 = applySST_walkRandom_write (dataPOI.Length) dataPOI
+let tree1_ = applySST_walkFastRandom (dataPOI.Length) dataPOI
+
+tree1.GroupGain // 69.4115
+tree1_.GroupGain // 48.6404
+
 
 sendToGephiFromTreeParam tree1
 
@@ -332,8 +551,12 @@ let pathsSorted =
     ArabiProteome.itemsWithMapManFound
     |> Array.groupBy (fun x -> x.BinL.[0])
     |> Array.filter (fun (bin,l) -> l.Length > 2)
-    |> Array.sortBy (fun (bin,l) -> l.Length )
-    |> Array.map (fst)
+    |> Array.map (fun (bin,l) -> 
+        let data = l |> Array.mapi (fun id x -> {x with ID=id})
+        let tree = readMM data.Length data
+        let childrenN = Tree.filterChildrenList tree
+        printfn "%s\t%i\t%i\t%f" bin data.Length (childrenN |> List.max) tree.GroupGain
+        (bin, data.Length, childrenN |> List.max, tree.GroupGain) )
     
 let pathsSortedChildren =
     ArabiProteome.itemsWithMapManFound  // ChlamyProteome.dataAll //  ArabiTranscriptome.itemsWithMapManIdentified //

@@ -439,7 +439,7 @@ module ArabiTranscriptome =
         inherit SchemaReader.Attribute.ConverterAttribute()
         override this.convertToObj = 
             SchemaReader.Converter.Single (fun (strs : string) -> 
-                                                (strs |> String.replace "at" "AT" |> String.replace "m" "M" |> String.replace "g" "G") |> box)
+                                                (strs |> String.map (Char.ToUpper)) |> box)
 
     type MapManRead = {
         [<SchemaReader.Attribute.FieldAttribute("BINCODE")>]    [<BinConverter>]       BinString           : string []
@@ -666,19 +666,13 @@ module ArabiProteome =
     let mapItemsToMapMan id (item: AProteinItemReadT) = 
         //printfn "name %s" item.ProteinGroup
         let binMM = 
-                    /// Calling Web.Server SQL DB
-            //(Queries.getOntologyterms MapManOntology item.ProteinGroup).OntologyGroups 
-            //|> (fun list -> 
-            //                if list.IsEmpty then 
-            //                    []
-            //                else 
-            //                    list
-            //                    |> List.head |> fst |> String.split ':' |> Array.item 1 |> String.split '.' |> Array.toList)
             [|for a in item.ProteinGroup ->
                 try 
                     (ArabiTranscriptome.dataMM |> Array.find (fun i -> i.ProteinIdentifier=a)).BinString 
                 with _ -> [||]
-            |] |> fun x ->
+            |] 
+            //|> Array.filter (fun x -> x.Length>0 && x.[0]<>"35")
+            |> fun x ->
                 try 
                     (x |> Array.find (fun i -> i<>[||]) )
                 with _ -> [||]

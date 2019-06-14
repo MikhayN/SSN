@@ -1307,7 +1307,7 @@ module Walk =
     //    mutable MaxGain: float
     //    } 
 
-    let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,Item>>) gainFn (data: Map<string, Item []>) = 
+    let walkingFn dN sN kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,Item>>) gainFn (data: Map<string, Item []>) = 
     
         let mutable qDictionary: Map<(int list list),((float*(int list list)) [] [])> = Map.empty
 
@@ -1399,7 +1399,7 @@ module Walk =
                 seq [ while 
                     (pq.Length>0) 
                     && (pq.Top()>0.) 
-                    && (countDirections<1) && (iStep<5) do // (pq.Top() > gainCurrent) && (countDirections<3) && (iStep<6)
+                    && (countDirections<dN) && (iStep<sN) do // (pq.Top() > gainCurrent) && (countDirections<3) && (iStep<6)
                 
                         countDirections <- countDirections + 1
                     
@@ -1519,7 +1519,7 @@ let readMM setN data  = SSN.createTree (SSN.getStepGainNodeSetnR setN)  (None) T
 let applySSN setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN)  (None) (Types.Mode.SSN_pre ((KMeanSwapFunctions.kmeanSwapShuffle setN 1), SSN.clusterHier)) data
 let applySSNcombi setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN)  (None) Types.Mode.SSN_combi data
 let applySSNold setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN) (None) (SSN_pre ((KMeanSwapFunctions.kmeanSwapShuffleOld 1), SSN.clusterHier)) data
-let applySST_walk setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (Clustering.kmeanGroupsKKZ, (Walk.walkingFn))) data
+let applySST_walk setN data = SSN.createTree (SSN.getStepGainNodeSetnR setN) None (SST_walk (Clustering.kmeanGroupsKKZ, (Walk.walkingFn 1 5))) data
 
 let asyncApplySSN setN data = async {return (applySST_walk setN data)}
 
