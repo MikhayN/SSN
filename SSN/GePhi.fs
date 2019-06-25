@@ -31,7 +31,7 @@ let sendToGephiFromTreeParam (tree: Node<string, Item>) =
     let rec toMemberSeq key depth (tree: Node<string,Item>) =
         let fillNodeFrom (items: Item []) gGain sGain cGain : GePhi_type.NodeParam =
             {
-            ProteinIDs = String.Join(";", (SSN.groupIDFn items));
+            ProteinIDs = String.Join(";", (General.groupIDFn items));
             NodeBin = String.Join(".",Array.append items.[0].BinL.[0 .. (depth-1)] [|key|]);
             LevelDepth = depth;
             Size = (float items.Length)/2.;

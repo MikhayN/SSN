@@ -1,7 +1,7 @@
 ﻿module SOM
 
 open Functions
-open Functions.SSN
+open Functions.General
 open Types
 
 open FSharpAux

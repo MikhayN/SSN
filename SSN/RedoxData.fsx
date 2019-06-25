@@ -102,6 +102,65 @@ let fromFile converter (filePath) =
     FileIO.readFile filePath
     |> fromFileEnumerator converter
 
+let one_hot_encoding (sequence: string) =
+    let aa = "ARNDCEQGHILKMFPSTWYV"
+    let m = Array2D.zeroCreate sequence.Length 20
+    for ii in [0 .. sequence.Length-1] do
+        for ai in [0 .. aa.Length-1] do
+            m.[ii,ai] <- if sequence.[ii]=aa.[ai] then 1 else 0 
+    m
+    |> Array2D.array2D_to_seq
+    |> Seq.toArray
+
+let getFlankingRegion fl (item: CysItem) =
+    let emptyP = 
+        if (item.CysPosition-fl<0) then -(item.CysPosition-fl)
+        else 0
+    let startP = 
+        if item.CysPosition-fl<0 then 0
+        else item.CysPosition-fl
+    let emptyAfter = 
+        if (item.CysPosition+fl)>=(item.ProteinSeq.Length) then ((item.CysPosition + fl) - (item.ProteinSeq.Length - 1) )
+        else 0
+    let len =
+        if (item.CysPosition+fl)>(item.ProteinSeq.Length-1) then (item.ProteinSeq.Length-item.CysPosition+fl)-emptyP
+        else (fl + fl + 1)-emptyP
+    let ending = String.fromCharArray(Array.create emptyAfter '_')
+    let beginning = String.fromCharArray(Array.create emptyP '_')
+    beginning + (item.ProteinSeq |> String.subString startP len) + ending
+
+let getFlankingRegionTabs fl (item: CysItem) =
+    let emptyP = 
+        if (item.CysPosition-fl<0) then -(item.CysPosition-fl)
+        else 0
+    let startP = 
+        if item.CysPosition-fl<0 then 0
+        else item.CysPosition-fl
+    let emptyAfter = 
+        if (item.CysPosition+fl)>=(item.ProteinSeq.Length) then ((item.CysPosition + fl) - (item.ProteinSeq.Length - 1) )
+        else 0
+    let len =
+        if (item.CysPosition+fl)>(item.ProteinSeq.Length-1) then (item.ProteinSeq.Length-item.CysPosition+fl)-emptyP
+        else (fl + fl + 1)-emptyP
+    let ending = String.fromCharArray(Array.create emptyAfter '_')
+    let beginning = String.fromCharArray(Array.create emptyP '_')
+    let charA =
+        beginning + (item.ProteinSeq |> String.subString startP len) + ending
+        |> String.toCharArray 
+    String.Join("\t", charA)
+    
+
+let one_hot_encoding_tabbed (sequence_t: string) =
+    let aa = "ARNDCEQGHILKMFPSTWYV"
+    let sequence = (sequence_t |> String.split '\t').[1 ..]
+    let m = Array2D.zeroCreate sequence.Length 20
+    for ii in [0 .. sequence.Length-1] do
+        for ai in [0 .. aa.Length-1] do
+            m.[ii,ai] <- if sequence.[ii]=(string aa.[ai]) then 1 else 0 
+    m
+    |> Array2D.array2D_to_seq
+    |> Seq.toArray
+
 ///////////// prepare PlantNamesSet
 
 let plantSet =
@@ -322,7 +381,7 @@ itemsAra.Length
 let data = 
     [redoxPart; itemsC; itemsAra; negativePartAra; negativePartC; negativeRedoxPart] 
     |> Array.concat 
-    |> Array.distinctBy (fun x -> (x.ProteinSeq,x.CysPosition)) // avoid repetition of samples
+    |> Array.distinctBy (fun x -> (x.ProteinSeq,x.CysPosition) ) // avoid repetition of samples
     |> Array.mapi enum
 
 data.Length // 8702
@@ -418,7 +477,7 @@ let dataBALOSCT_filtered =
 
 dataBALOSCT_filtered |> Array.map (fun i -> i.Organism) |> Array.distinct
 
-/// Arabidopsis Dataset from Pxxxxxxx article
+/// Arabidopsis Dataset from Puyaubert article
 let itemsAraTest =
     FileIO.readFile @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\Tables\Ara_TEST.txt" 
     |> Seq.toList  
@@ -455,6 +514,10 @@ let itemsAraTest_filtered =
 
 itemsAraTest_filtered.Length // 35 or 37
 
+let linesPlants = itemsAraTest_filtered |> Array.map (fun x -> [sprintf ">%s" x.ProtID; x.ProteinSeq; ""]) |> List.concat
+
+FileIO.writeToFile false @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\Tables\PlantTest.fa" linesPlants
+
 /// All PLANTS DB
 
 let plantDB =
@@ -470,66 +533,56 @@ let plantDB =
 
 plantDB.Length 
 
+///////////////////////////////// Final TRAINING & TESTING sets
+
+/// Dataset A : plants only
+let setA_pos =
+    let fromRedoxDB = redoxPart |> Array.filter (fun i -> i.IsPlant)
+    let positive = 
+        [|fromRedoxDB; itemsC; itemsAra; itemsAraTest_filtered|] 
+        |> Array.concat
+        |> Array.distinctBy (fun x -> (x.ProteinSeq,x.CysPosition))
+    positive
+    |> Array.mapi enum
+
+/// Dataset B : everything not plants
+let setB_pos =
+    redoxPart 
+    |> Array.filter (fun i -> not i.IsPlant)
+    |> Array.mapi enum
+
+let (setT_test, setA_rest) =
+    setA_pos 
+    |> Array.shuffleFisherYates
+    |> Array.splitAt 100
+    
+let setC_train =
+    [|setB_pos; genNeg setB_pos; setA_rest; genNeg setA_rest|]
+    |> Array.concat
+    |> Array.shuffleFisherYates
+         
+
 /////////////// FEATURES
 
-let one_hot_encoding (sequence: string) =
-    let aa = "ARNDCEQGHILKMFPSTWYV"
-    let m = Array2D.zeroCreate sequence.Length 20
-    for ii in [0 .. sequence.Length-1] do
-        for ai in [0 .. aa.Length-1] do
-            m.[ii,ai] <- if sequence.[ii]=aa.[ai] then 1 else 0 
-    m
-    |> Array2D.array2D_to_seq
-    |> Seq.toArray
+//data.[35] |> getFlankingRegionTabs 4 |> one_hot_encoding_tabbed 
 
-let getFlankingRegion fl (item: CysItem) =
-    let emptyP = 
-        if (item.CysPosition-fl<0) then -(item.CysPosition-fl)
-        else 0
-    let startP = 
-        if item.CysPosition-fl<0 then 0
-        else item.CysPosition-fl
-    let emptyAfter = 
-        if (item.CysPosition+fl)>=(item.ProteinSeq.Length) then ((item.CysPosition + fl) - (item.ProteinSeq.Length - 1) )
-        else 0
-    let len =
-        if (item.CysPosition+fl)>(item.ProteinSeq.Length-1) then (item.ProteinSeq.Length-item.CysPosition+fl)-emptyP
-        else (fl + fl + 1)-emptyP
-    let ending = String.fromCharArray(Array.create emptyAfter '_')
-    let beginning = String.fromCharArray(Array.create emptyP '_')
-    beginning + (item.ProteinSeq |> String.subString startP len) + ending
+//let dataFlanked = data |> Array.map (fun i -> [(string i.Label) ; (getFlankingRegion 4 i)])
 
-let getFlankingRegionTabs fl (item: CysItem) =
-    let emptyP = 
-        if (item.CysPosition-fl<0) then -(item.CysPosition-fl)
-        else 0
-    let startP = 
-        if item.CysPosition-fl<0 then 0
-        else item.CysPosition-fl
-    let emptyAfter = 
-        if (item.CysPosition+fl)>=(item.ProteinSeq.Length) then ((item.CysPosition + fl) - (item.ProteinSeq.Length - 1) )
-        else 0
-    let len =
-        if (item.CysPosition+fl)>(item.ProteinSeq.Length-1) then (item.ProteinSeq.Length-item.CysPosition+fl)-emptyP
-        else (fl + fl + 1)-emptyP
-    let ending = String.fromCharArray(Array.create emptyAfter '_')
-    let beginning = String.fromCharArray(Array.create emptyP '_')
-    let charA =
-        beginning + (item.ProteinSeq |> String.subString startP len) + ending
-        |> String.toCharArray 
-    String.Join("\t", charA)
-    
+let dataFlankedTabbed = 
+    setC_train
+    |> Array.map (fun i -> 
+        (string i.Label) + "\t" + (getFlankingRegionTabs 4 i) 
+        |> String.replace "_" "")
+        
+File.AppendAllLines(@"c:\Users\mikha\Downloads\TRAIN_9.txt", dataFlankedTabbed)
 
-let one_hot_encoding_tabbed (sequence_t: string) =
-    let aa = "ARNDCEQGHILKMFPSTWYV"
-    let sequence = (sequence_t |> String.split '\t').[1 ..]
-    let m = Array2D.zeroCreate sequence.Length 20
-    for ii in [0 .. sequence.Length-1] do
-        for ai in [0 .. aa.Length-1] do
-            m.[ii,ai] <- if sequence.[ii]=(string aa.[ai]) then 1 else 0 
-    m
-    |> Array2D.array2D_to_seq
-    |> Seq.toArray
+//// for testing Redox predictor
+
+let linesPlants' = itemsAraTest_filtered |> Array.map (fun x -> [sprintf ">%s" x.ProtID; getFlankingRegion 4 x; ""]) |> List.concat
+
+FileIO.writeToFile false @"c:\Users\mikha\Work-CSB\Redox-Sensitive Cys\Tables\PlantTestCysSeq.fa" linesPlants'
+
+// to NN
 
 let itemToLine_forNN fl (item: CysItem) =
     let label = 
@@ -554,22 +607,4 @@ let dataShaffled = dataLines |> Array.shuffleFisherYates
 File.AppendAllLines(@"c:\Users\mikha\Downloads\dataBALOSCT_NN_test.txt", dataShaffled.[0 ..])  
 File.AppendAllLines(@"c:\Users\mikha\Downloads\dataRSC_NN_train.txt", dataShaffled.[100 .. ])  
 
-data.[35] |> getFlankingRegionTabs 4 |> one_hot_encoding_tabbed 
-
-//let dataFlanked = data |> Array.map (fun i -> [(string i.Label) ; (getFlankingRegion 4 i)])
-
-let dataFlankedTabbed = 
-    plantDB
-    |> Array.map (fun i -> 
-        (string i.Label) + "\t" + (getFlankingRegionTabs 4 i) 
-        |> String.replace "_" "")
-        
-let writeFileData (dataFlanked: string list []) path =
-    File.AppendAllLines(path, dataFlanked |> Array.map (fun i ->  String.Join("\t", i)))
-
-//writeFileData dataFlanked @"c:\Users\mikha\Downloads\data.txt"
-
-File.AppendAllLines(@"c:\Users\mikha\Downloads\dataPLANT_9_featuresTab.txt", dataFlankedTabbed)
-
-/////////////////// ML
-// look into FSharpML.sln
+/////////////////// ML -> look into FSharpML.sln

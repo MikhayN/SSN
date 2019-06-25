@@ -1,7 +1,7 @@
 ﻿module Auxilliary
 
 open Functions
-open Functions.SSN
+open Functions.General
 
 open Types
 open TestData.General

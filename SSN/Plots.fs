@@ -132,13 +132,16 @@ let drawKinetikRange time title (data: Item [] [])  =
 ///specified by index in a set of items and a label for the line
 let drawKinetikRangeStack time title (data: Item [] [])  =
 
-    let dataLine col label (protein: Item)  =
+    let minY = data |> Array.map (Array.map (fun i -> i.dataL |> Array.min) >> Array.min) |> Array.min
+    let maxY = data |> Array.map (Array.map (fun i -> i.dataL |> Array.max) >> Array.max) |> Array.max
+
+    let dataLine col (protein: Item)  =
         let data = protein.dataL
         let points = Array.zip time data
         let name = string protein.ID
-        Chart.Line (points, Name = name, Labels = [label;"";"";"";"";""], Color=col)
+        Chart.Line (points, Name = name, Color=col)
     
-    let dataLineAsRange col anno (proteins: Item []) =
+    let dataLineAsRange col (proteins: Item []) =
         let (mean,min,max) = 
             proteins 
             |> Array.map (fun protein -> protein.dataL) 
@@ -148,13 +151,13 @@ let drawKinetikRangeStack time title (data: Item [] [])  =
 
         let meanTime = Array.zip time mean 
         let rangePlot = 
-            Chart.Range (time, mean, min, max, Labels = [anno;"";"";"";"";""], Color=col) 
+            Chart.Range (time, mean, min, max, Name = sprintf "%s-%A" (string proteins.[0].ID) (proteins.[0].BinL.[proteins.[0].BinL.Length-1]) , Color=col) 
             |> Chart.withLineStyle (Color=col, Dash=StyleParam.DrawingStyle.Solid)
         let meanLine = Chart.Line (time, mean, Color=col)
         [rangePlot; meanLine] 
         |> Chart.Combine 
-        |> Chart.withY_AxisStyle ("", (-2.,2.), Showline=true, Showgrid=false) 
-        |> Chart.withX_AxisStyle ("", (0.,32.), Showline=false, Showgrid=false)
+        |> Chart.withY_AxisStyle ("", (minY,maxY), Showline=true, Showgrid=false) 
+        |> Chart.withX_AxisStyle ("", (time.[0],time.[time.Length-1]), Showline=false, Showgrid=false)
 
     let singletons =
         data
@@ -174,11 +177,11 @@ let drawKinetikRangeStack time title (data: Item [] [])  =
                 |9 -> "rgba(0,0,180,1)"
                 |10 -> "rgba(180,0,0,1)"
                 |_ -> "rgba(0,0,0,1)"
-            dataLine col (string protein.[0].ID) protein.[0]
+            dataLine col protein.[0]
         )
         |> Chart.Combine 
-        |> Chart.withY_AxisStyle ("", (-2.,2.), Showline=true, Showgrid=false)
-        |> Chart.withX_AxisStyle ("", (0.,32.), Showline=false, Showgrid=false)
+        |> Chart.withY_AxisStyle ("", (minY,maxY), Showline=true, Showgrid=false)
+        |> Chart.withX_AxisStyle ("", (time.[0],time.[time.Length-1]), Showline=false, Showgrid=false)
 
     let range =
         data
@@ -198,7 +201,7 @@ let drawKinetikRangeStack time title (data: Item [] [])  =
                 |9 -> "rgba(0,0,180,1)"
                 |10 -> "rgba(180,0,0,1)"
                 |_ -> "rgba(0,0,0,1)"
-            dataLineAsRange col "" list
+            dataLineAsRange col list
             )
 
     [|range;[|singletons|]|] 
