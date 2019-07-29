@@ -27,7 +27,7 @@ open FSharp.Plotly
 open FSharp.Stats
 
 open Functions
-open Functions.SSN
+open Functions.General
 open TestData
 open GePhi
 open Types
@@ -553,7 +553,7 @@ walk
 let timeAra = [|15.;180.;2880.;5760.;(5760.+15.);(5760.+180.);(5760.+2880.);(5760.+5760.)|]
 let timeChla = [|1.;24.;25.;26.;28.;32.|]
 
-Plots.drawKinetik (walk |> Tree.findNode ["29";"2";"1";"1";"1";"1"]) timeChla "subbin 29.2.1.1.1.1" |> Chart.Show
+Plots.drawKinetik (walk |> Tree.findNodeMembers ["29";"2";"1";"1";"1";"1"]) timeChla "subbin 29.2.1.1.1.1" |> Chart.Show
 
 let dataPrep = [|[|dataPOI.[13]|]; [|dataPOI.[38]|]; 
     [|dataPOI.[13];dataPOI.[38];dataPOI.[3];dataPOI.[20]|]; 

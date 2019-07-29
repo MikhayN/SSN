@@ -25,6 +25,7 @@ module General =
 
     let rca1 = "Cre04.g229300"
     let rmt1 = "Cre16.g661350"
+    let psrp1 = "Cre05.g237450"
     let calvinCycleBin = ["1"; "3"]
     let psIIsubunitBin = ["1";"1";"1";"2"]
     let plastidRP = ["29";"2";"1";"1"]
@@ -425,6 +426,7 @@ module ChlamyTranscriptome =
                         Features=i.Features} with
                 |ex -> None)
 
+
 module ArabiTranscriptome =
 
     // read MapMan terms
@@ -433,7 +435,7 @@ module ArabiTranscriptome =
         inherit SchemaReader.Attribute.ConverterAttribute()
         override this.convertToObj = 
             SchemaReader.Converter.Single (fun (strs : string) -> 
-                                                (strs |> String.replace "GMM:" "" |> String.replace ";" "." |> String.split '.' ) |> box)
+                                                (strs |> String.split ';' |> Array.map (String.replace "GMM:" "" >> String.split '.' ) |> Array.item 0) |> box)
 
     type IdentifierConverter() = 
         inherit SchemaReader.Attribute.ConverterAttribute()
@@ -642,7 +644,8 @@ module ArabiTranscriptome =
 module ArabiProteome =
     
     let csvPathTA = sprintf @"%sdata\Proteome_201902\SFBcore_Heat_Protein.txt" General.pathToData
-    
+    //let csvPathTA = sprintf @"%sdata\Proteome_201902\HeatShock_customNorm.txt" General.pathToData
+
     type NameConverter() = 
         inherit SchemaReader.Attribute.ConverterAttribute()
         override this.convertToObj = 
@@ -653,6 +656,7 @@ module ArabiProteome =
         [<SchemaReader.Attribute.FieldAttribute("Timepoint")>]       [<NameConverter>]           ProteinGroup    : string []
         [<SchemaReader.Attribute.FieldAttribute(
             [| "A15";"A180";"A2880";"A5760";"DA15";"DA180";"DA2880";"DA5760" |])>]  [<ChlamyProteome.DoubleArrayConverter>] Features    : float [] 
+            //[|"0m";"15m";"180m";"2880m";"5760m";"15m";"180m";"2880m";"5760m"|])>]  [<ChlamyProteome.DoubleArrayConverter>] Features    : float [] 
         }
 
     let readerTA = new SchemaReader.Csv.CsvReader<AProteinItemReadT>(schemaMode=SchemaReader.Csv.SchemaMode.Fill)

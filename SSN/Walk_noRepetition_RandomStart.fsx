@@ -43,7 +43,7 @@ open Plots
 
 let mutable stepCount = 0
 
-let delta = 0.01
+let delta = 0.06
 
 let walkingFn kmeanKKZ depth matrixSingletons (singles: Map<string,Node<string,Item>>) gainFn (dataM: Map<string, Item []>) = 
     
@@ -341,10 +341,10 @@ let walkingHC_Fn hcFn depth matrixSingletons (singles: Map<string,Node<string,It
             let mutable countDirections = 0
             
             seq [ while 
-                (pq.Length>0) 
-                && (pq.Top()>(gainCurrent ))//- delta*gainCurrent)) // no sinking lower delta
+                (pq.Length > 0) 
+                && (pq.Top() > (gainCurrent - delta*gainCurrent) ) // no sinking lower delta
                 && (countDirections < 1) // max direction checked = 1
-                && (iStep < (dataM.Count/1)) //&& (iStep<5) // max path length = 5
+                && (iStep < (dataM.Count/1) ) //&& (iStep<5) // max path length = 5
                 do 
                 
                     countDirections <- countDirections + 1
@@ -448,9 +448,22 @@ let walkingHC_Fn hcFn depth matrixSingletons (singles: Map<string,Node<string,It
     //    |> List.ofArray
     //    )
 
+    let eval fn matrixSingles (initConf: (string * Item [] ) [] [])  =
+        (initConf
+        |> Array.sumBy (fun cluster ->
+            if cluster.Length=1 then 
+                (Map.find (fst cluster.[0]) singles).GroupGain
+            else
+                let itemsChild = cluster |> Array.map (snd) |> Array.concat |> General.groupIDFn
+                let itemsParent = dataGroups |> Array.concat |> General.groupIDFn 
+                General.getStepGainFn fn itemsChild itemsParent itemsParent.Length matrixSingles
+            ), initConf)
+
     (seq [singleGG |> Array.sum, Array.init dataM.Count (fun i -> [|i|])]) :: 
-        ([2 .. 4 .. (dataM.Count-1)] 
+        ([2 .. (dataM.Count-1)] 
         |> hcFn dataM
+        |> List.sortByDescending ((eval gainFn matrixSingletons) >> fst)
+        |> fun x -> if x.Length>10 then x.[0 .. 10] else x
         |> List.map (fun i -> i |> superFunctionTestG dataGroups singleGG gainFn matrixSingletons)
         )
     |> Seq.ofList
@@ -726,7 +739,7 @@ let asyncApplySSN data setN = async {return (applySST_walk setN data )}
 
 let dataPOI = 
     ArabiProteome.itemsWithMapManFound
-    |> Array.filter (fun x -> x.BinL.[0]="29")
+    |> Array.filter (fun x -> x.BinL.[0]="8")
     |> Array.mapi (fun id x -> {x with ID=id})
 dataPOI.Length
 
@@ -737,17 +750,17 @@ let tree1_hc_walk_ViertelK = applySST_walkFromHC (dataPOI.Length) dataPOI
 
 let tree1_hc = applySST_clustDet (dataPOI.Length) dataPOI 
 
-let tree29_hc_walk = applySST_walkFromHC (dataPOI.Length) dataPOI
+let tree8_hc_walk = applySST_walkFromHC (dataPOI.Length) dataPOI
 
 
 tree1.GroupGain         // 69.4115
 tree1_.GroupGain        // 48.6404
 tree1_hc.GroupGain      // 71.6172 good enough?
-tree1_hc_walk.GroupGain // 79.2476 for 1.5 hr
-tree1_hc_walk_halfK.GroupGain // 79.2476 for 3 min!!!
+tree8_hc_walk.GroupGain // 79.2476 for 1.5 hr
+//tree1_hc_walk_halfK.GroupGain // 79.2476 for 3 min!!!
 tree1_hc_walk_ViertelK.GroupGain // 79.2476 for 40 sec!!! or 1 min with parallelization.... weird.
 
-sendToGephiFromTreeParam tree1_hc_walk
+//sendToGephiFromTreeParam tree1_hc_walk
 
 let subbin_1_3 = (tree1 |> Tree.findNode ["1";"3"]) |> Tree.filterLeaves
 
@@ -787,7 +800,7 @@ let pathsSorted =
         (bin, data.Length, childrenN |> List.max, tree.GroupGain) )
     
 let pathsSortedChildren =
-    ArabiProteome.itemsWithMapManFound  // ChlamyProteome.dataAll //  ArabiTranscriptome.itemsWithMapManIdentified //
+    ArabiProteome.itemsWithMapManFound  // ChlamyProteome.dataAll //   ArabiTranscriptome.itemsWithMapManIdentified //
     |> Array.groupBy (fun x -> x.BinL.[0])
     |> Array.filter (fun (bin,l) -> l.Length > 2 && bin<>"35")
     |> Array.map (fun (bin,l) -> 
@@ -799,16 +812,17 @@ let pathsSortedChildren =
     |> Array.sortBy (fun (_,cn,_) -> cn)
     |> Array.map (fun (x,_,_) -> x)
 
-let pathFile = sprintf @"%sresults\" General.pathToData
-let neader = "Path\tnRoot\tchildrenMax\twalk_GG\twalk_Time\twalk_DxC"
 
-File.AppendAllLines((sprintf "%s%s.txt" pathFile "newArabiProtData_random_d1_del01_sSize"), [neader])
-        
-let linesWAcombi = 
-    pathsSortedChildren // [|"13"; "9"; "11"; "4"; "34"; "3"; "19"; "28"; "21"; "26"; "33"; "1"; "27"; "20"; "30"; "29"; "31";|]
+let pathFile = sprintf @"%sresults\walk_hcStart\" General.pathToData
+let neader = "Path\tnRoot\tchildrenMax\thc_GG\thc_Time\thc_DxC\twalk_GG\twalk_Time\twalk_DxC"
+
+File.AppendAllLines((sprintf "%s%s.txt" pathFile "ArabiProtData_hc10_d1_sSize_del6"), [neader])
+       
+let linesWAcombi =
+    pathsSortedChildren // [|"22"; "6"; "24"; "5"; "14"; "17"; "2"; "25"; "8"; "12"; "7"; "23"; "16"; "18"; "15"; "13"; "10"|] //[|"13"; "9"; "11"; "4"; "34"; "3"; "19"; "28"; "21"; "26"; "33"; "1"; "27"; "20"; "30"; "29"; "31";|]
     |> List.ofArray
-    |> List.map (fun path -> 
-        let data = 
+    |> List.map (fun path ->
+        let data =
             ArabiProteome.itemsWithMapManFound //  ChlamyProteome.dataAll //  
             |> Array.filter (fun x -> x.BinL.[0]=path)
             |> Array.mapi (fun id x -> {x with ID=id})
@@ -816,41 +830,66 @@ let linesWAcombi =
         let childrenN = Tree.filterChildrenList tree |> List.max
         let stopwatch = new System.Diagnostics.Stopwatch()
         stopwatch.Start()
-        let walk = applySST_walkRandom_write data.Length data
+        let hc = applySST_clustDet data.Length data // applySSNcombi data.Length data // 
+        let timeHC = (stopwatch.Elapsed.TotalSeconds)
+        stopwatch.Stop()
+        stopwatch.Start()
+        let walk = applySST_walkFromHC data.Length data
         let timeWalk = (stopwatch.Elapsed.TotalSeconds)
         stopwatch.Stop()
 
-        let matrixOfN = 
+        let matrixOfN =
             data
             |> General.distMatrixWeightedOf General.distanceMatrixWeighted None
-            
-        let dissMax = 
+           
+        let dissMax =
             matrixOfN
             |> Array2D.array2D_to_seq
             |> Seq.max
 
-        let normMatrix = 
+        let normMatrix =
             matrixOfN
             |> Array2D.map (fun i -> i/dissMax)
 
-        let dxcW = 
+        let dxcW =
             walk
             |> Tree.filterLeaves
             |> Analysis.pointDxC normMatrix
             |> fun (x,y) -> General.weightedEuclidean None [x;y] [0.;0.]
 
-        printfn "path; nRoot; childrenMax; walk GG; walk Time; walk DxC"
-        printfn "%s %i %i %f %f %f" 
-            path data.Length childrenN walk.GroupGain timeWalk dxcW
+        let dxcHC =
+            hc
+            |> Tree.filterLeaves
+            |> Analysis.pointDxC normMatrix
+            |> fun (x,y) -> General.weightedEuclidean None [x;y] [0.;0.]
 
-        let line = 
-            sprintf "%s\t%i\t%i\t%f\t%f\t%f" 
-                path data.Length childrenN walk.GroupGain timeWalk dxcW
-        
-        File.AppendAllLines((sprintf "%s%s.txt" pathFile "newArabiProtData_random_d1_del01_sSize"), [line])
+        printfn "path; nRoot; childrenMax; hc GG; hc Time; hc DxC; walk GG; walk Time; walk DxC"
+        printfn "%s %i %i %f %f %f %f %f %f"
+            path data.Length childrenN hc.GroupGain timeHC dxcHC walk.GroupGain timeWalk dxcW 
+
+        let treeLinesW =
+            walk
+            |> Tree.filterLeaves
+            |> Array.concat
+            |> Array.map (fun x ->  (sprintf "%i" x.ID) + "\t" + (String.Join(";", x.OriginalBin))  + "\t" + (String.Join(";", x.BinL)))
+        File.AppendAllLines(sprintf @"c:\Users\mikha\source\repos\SSN\results\walk_hcStart\Arabi_path_walk_hc10best_%s.txt" path, treeLinesW)
+
+        //let treeLinesHC =
+        //    hc
+        //    |> Tree.filterLeaves
+        //    |> Array.concat
+        //    |> Array.map (fun x ->  (sprintf "%i" x.ID) + "\t" + (String.Join(";", x.OriginalBin))  + "\t" + (String.Join(";", x.BinL)))
+        //File.AppendAllLines(sprintf @"c:\Users\mikha\source\repos\SSN\results\walk_hcStart\Chlamy_hc_%s.txt" path, treeLinesHC)
+
+        let line =
+            sprintf "%s\t%i\t%i\t%f\t%f\t%f\t%f\t%f\t%f"
+                path data.Length childrenN hc.GroupGain timeHC dxcHC walk.GroupGain timeWalk dxcW 
+       
+        File.AppendAllLines((sprintf "%s%s.txt" pathFile "ArabiProtData_hc10_d1_sSize_del6"), [line])
 
         line
         )
+
         
 /////////////////////////// ####### plot path walking tree
 

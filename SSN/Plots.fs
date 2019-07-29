@@ -209,3 +209,29 @@ let drawKinetikRangeStack time title (data: Item [] [])  =
     |> Chart.Stack 2
     //|> Chart.Combine 
     |> Chart.withTraceName title 
+
+let drawLeaves title recordPoints (tree: Types.Node<string,Types.Item>) =
+    tree
+    |> Auxilliary.Tree.filterLeaves
+    |> (fun x -> x.[0 ..])
+    |> Array.mapi (fun c list ->
+        let col =
+            match c with
+            |0 -> colorOrange 
+            |1 -> "rgba(0,0,0,1)" 
+            |2 -> colorBlue   
+            |3 -> colorGreen 
+            |4 -> colorYellow 
+            |5 -> "rgba(0,180,0,1)"
+            |6 -> "rgba(0,180,180,1)"
+            |7 -> "rgba(180,0,180,1)"
+            |8 -> "rgba(180,180,0,1)"
+            |9 -> "rgba(0,0,180,1)"
+            |10 -> "rgba(180,0,0,1)"
+            |_ -> "rgba(0,0,0,1)"
+        list |> Array.map (fun d -> Chart.Line(recordPoints, d.dataL, sprintf "%i" d.ID, Color=col) ) |> Chart.Combine
+                )
+    |> Chart.Combine
+    |> Chart.withTitle title
+    |> Chart.withSize (600.,400.)
+    |> Chart.Show

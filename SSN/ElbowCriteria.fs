@@ -6,7 +6,7 @@ open FSharp.Stats
 
 open Types
 open Functions
-open Functions.SSN
+open Functions.General
 open FunctionsExp
 open TestData
 

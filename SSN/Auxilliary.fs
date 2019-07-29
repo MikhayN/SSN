@@ -153,7 +153,7 @@ module Tree =
 
     /// count pairs, not in the same clusters between trees. It reqiures all items to be identical in both trees 
     let treeComparison (treeA: Node<string,Item>) (treeB: Node<string, Item>) : int =
-        let m tree =
+        let m tree = // adjucency matrix for the tree
             let idBin = 
                 tree 
                 |> filterLeaves |> Array.concat |> Array.map (fun x -> x.ID,x.BinL) |> Array.sortBy fst
@@ -161,6 +161,7 @@ module Tree =
         let lA = m treeA 
         let lB = m treeB 
         Array.zip lA lB |> Array.sumBy (fun ((a),(b)) -> if a=b then 0 else 1)
+
 
 module ClusterCheck =
 
@@ -299,47 +300,47 @@ module Analysis =
         |> Chart.withSize(1000.,1000.)
         |> Chart.Show
 
-    //let drawSurface (data: (string*(float*float) list) list) =
-    //    let sortedData =
-    //        data
-    //        |> List.sortBy (fun (path,xyList) -> 
-    //            let area =
-    //                [1 .. (xyList.Length-2)]
-    //                |> List.map (fun i -> ((snd xyList.[i])+(snd xyList.[i+1]))*((fst xyList.[i+1])-(fst xyList.[i]))/2.)
-    //                |> List.sum
-    //            area)
-    //        |> List.mapi (fun i (s,(xy)) -> (i,s,(xy)))
-    //    let grid (data': (float*float) list ) =
-    //        [|0. .. 0.03 .. 1.|]
-    //        |> Array.map (fun x0 -> 
-    //            let (x1,y1) = 
-    //                data'
-    //                |> List.rev
-    //                |> List.filter (fun (x,y) -> x<=x0)
-    //                |> List.last
-    //            let (x2,y2) =
-    //                data'
-    //                |> List.rev
-    //                |> List.filter (fun (x,y) -> x>x0)
-    //                |> List.head 
-    //            (y1-y2)/(x1-x2)*x0+(y2-(y1-y2)/(x1-x2)*x2)) // something....
-    //    let surface =
-    //        Chart.Surface ((sortedData |> List.map (fun (i,s,xy) -> grid xy.Tail)), Opacity=0.8, Colorscale=StyleParam.Colorscale.Hot)
-    //    let line =
-    //        let points =
-    //            sortedData
-    //            |> List.map (fun (i,s,xy) -> ((fst xy.Head)*30.,i,(snd xy.Head)))
-    //        let labels =
-    //            sortedData
-    //            |> List.map (fun (i,s,xy) -> s)
-    //        Chart.Scatter3d (points,StyleParam.Mode.Lines_Markers,Color="#2ca02c",Labels=labels)
-    //    [surface;line]
-    //    |> Chart.Combine
-    //    |> Chart.withX_AxisStyle("Dissimilarity(*30)")
-    //    |> Chart.withY_AxisStyle("Path")
-    //    |> Chart.withZ_AxisStyle("Complexity")
-    //    |> Chart.withSize(1000.,1000.)
-    //    |> Chart.Show
+    let drawSurface (data: (string*(float*float) list) list) =
+        let sortedData =
+            data
+            |> List.sortBy (fun (path,xyList) -> 
+                let area =
+                    [1 .. (xyList.Length-2)]
+                    |> List.map (fun i -> ((snd xyList.[i])+(snd xyList.[i+1]))*((fst xyList.[i+1])-(fst xyList.[i]))/2.)
+                    |> List.sum
+                area)
+            |> List.mapi (fun i (s,(xy)) -> (i,s,(xy)))
+        let grid (data': (float*float) list ) =
+            [|0. .. 0.03 .. 1.|]
+            |> Array.map (fun x0 -> 
+                let (x1,y1) = 
+                    data'
+                    |> List.rev
+                    |> List.filter (fun (x,y) -> x<=x0)
+                    |> List.last
+                let (x2,y2) =
+                    data'
+                    |> List.rev
+                    |> List.filter (fun (x,y) -> x>x0)
+                    |> List.head 
+                (y1-y2)/(x1-x2)*x0+(y2-(y1-y2)/(x1-x2)*x2)) // something....
+        let surface =
+            Chart.Surface ((sortedData |> List.map (fun (i,s,xy) -> grid xy.Tail)), Opacity=0.8, Colorscale=StyleParam.Colorscale.Hot)
+        let line =
+            let points =
+                sortedData
+                |> List.map (fun (i,s,xy) -> ((fst xy.Head)*30.,i,(snd xy.Head)))
+            let labels =
+                sortedData
+                |> List.map (fun (i,s,xy) -> s)
+            Chart.Scatter3d (points,StyleParam.Mode.Lines_Markers,Color="#2ca02c",Labels=labels)
+        [surface;line]
+        |> Chart.Combine
+        |> Chart.withX_AxisStyle("Dissimilarity(*30)")
+        |> Chart.withY_AxisStyle("Path")
+        |> Chart.withZ_AxisStyle("Complexity")
+        |> Chart.withSize(1000.,1000.)
+        |> Chart.Show
 
     // Calculate line intersection
     let calcIntersection (a:(float*float)) (b:(float*float)) (c:(float*float)) (d:(float*float)) =
